@@ -230,8 +230,6 @@ namespace MSConvertGUI
                 }
             }
 
-            FilesToConvertInParallelUpDown.Value = Properties.Settings.Default.NumFilesToConvertInParallel;
-
             thresholdTypeComboBox.Items.AddRange(thresholdTypes.Select(o => o.Key).ToArray());
             thresholdTypeComboBox.SelectedIndex = 0;
             thresholdOrientationComboBox.SelectedIndex = 0;
@@ -340,7 +338,6 @@ namespace MSConvertGUI
             SubsetPanel.Visible = false;
             LockmassRefinerPanel.Visible = false;
             ScanSummingPanel.Visible = false;
-            DiaUmpirePanel.Visible = false;
 
             switch (FilterBox.Text)
             {
@@ -370,9 +367,6 @@ namespace MSConvertGUI
                     break;
                 case "Scan Summing":
                     ScanSummingPanel.Visible = true;
-                    break;
-                case "DIA-Umpire":
-                    DiaUmpirePanel.Visible = true;
                     break;
             }
         }
@@ -566,7 +560,6 @@ namespace MSConvertGUI
                         String optimizationArgs = DemuxTypeBox.Text == "Overlap Only" ? " optimization=overlap_only" : String.Empty;
                         demuxArgs += optimizationArgs;
                     }
-
                     if (!String.IsNullOrEmpty(DemuxMassErrorValue.Text) &&
                         !String.IsNullOrEmpty(DemuxMassErrorTypeBox.Text))
                     {
@@ -596,15 +589,6 @@ namespace MSConvertGUI
                                                 args
                                            });
                     break;
-
-                case "DIA-Umpire":
-                    FilterDGV.Rows.Add(new[]
-                    {
-                        "diaUmpire",
-                        String.Format("params={0}", DiaUmpireParamsFileTextBox.Text)
-                    });
-                    break;
-
                 case "ETD Peak Filter":
                     var tempObject = new[] { "ETDFilter", String.Empty };
                     if (!ETDRemovePrecursorBox.Checked || !ETDRemoveChargeReducedBox.Checked ||
@@ -644,12 +628,9 @@ namespace MSConvertGUI
                     if (!String.IsNullOrEmpty(ScanEventLow.Text) || !String.IsNullOrEmpty(ScanEventHigh.Text))
                         FilterDGV.Rows.Add(new[] { "scanEvent", String.Format("{0}-{1}", ScanEventLow.Text, ScanEventHigh.Text) });
                     if (!String.IsNullOrEmpty(ChargeStatesLow.Text) || !String.IsNullOrEmpty(ChargeStatesHigh.Text))
-                        FilterDGV.Rows.Add(new[] { "chargeState", String.Format("{0}-{1}", ChargeStatesLow.Text, ChargeStatesHigh.Text) });
+                        FilterDGV.Rows.Add(new[] { "chargeStates", String.Format("{0}-{1}", ChargeStatesLow.Text, ChargeStatesHigh.Text) });
                     if (!String.IsNullOrEmpty(DefaultArrayLengthLow.Text) || !String.IsNullOrEmpty(DefaultArrayLengthHigh.Text))
                         FilterDGV.Rows.Add(new[] { "defaultArrayLength", String.Format("{0}-{1}", DefaultArrayLengthLow.Text, DefaultArrayLengthHigh.Text) });
-                    if (!String.IsNullOrEmpty(CollisionEnergyLow.Text) && !String.IsNullOrEmpty(CollisionEnergyHigh.Text))
-                        FilterDGV.Rows.Add(new[] { "collisionEnergy", String.Format("low={0} high={1} acceptNonCID={2} acceptMissingCE={3}", CollisionEnergyLow.Text, CollisionEnergyHigh.Text,
-                                                                                    CollisionEnergyAcceptNonCIDMSnSpectra.Checked, CollisionEnergyAcceptCIDSpectraWithMissingCE.Checked) });
                     if (ActivationTypeBox.Text != "Any")
                         FilterDGV.Rows.Add(new[] { "activation", ActivationTypeBox.Text });
                     if (AnalyzerTypeBox.Text != "Any")
@@ -669,7 +650,7 @@ namespace MSConvertGUI
                     FilterDGV.Rows.Add(new[] { "lockmassRefiner", $"mz={LockmassMz.Text} tol={LockmassTolerance.Text}" });
                     break;
                 case "Scan Summing":
-                    FilterDGV.Rows.Add(new[] { "scanSumming", $"precursorTol={ScanSummingPrecursorToleranceTextBox.Text} scanTimeTol={ScanSummingScanTimeToleranceTextBox.Text} ionMobilityTol={ScanSummingIonMobilityToleranceTextBox.Text} sumMs1={(ScanSummingSumMs1Checkbox.Checked ? 1 : 0)}" });
+                    FilterDGV.Rows.Add(new[] { "scanSumming", $"precursorTol={ScanSummingPrecursorToleranceTextBox.Text} scanTimeTol={ScanSummingScanTimeToleranceTextBox.Text} ionMobilityTol={ScanSummingIonMobilityToleranceTextBox.Text}" });
                     break;
             }
         }
@@ -733,6 +714,9 @@ namespace MSConvertGUI
             {
                 case "mzXML":
                     commandLine.Append("--mzXML|");
+                    break;
+                case "mzMLb":
+                    commandLine.Append("--mzMLb|");
                     break;
                 case "mz5":
                     commandLine.Append("--mz5|");
@@ -849,6 +833,7 @@ namespace MSConvertGUI
                         OutputExtension = words[++i];
                         break;
                     case "--mzXML":
+                    case "--mzMLb":
                     case "--mz5":
                     case "--mgf":
                     case "--text":
@@ -1095,9 +1080,6 @@ namespace MSConvertGUI
             setToolTip(this.ScanEventLabel, "Use this filter to include only scans generated by a range of scan events.", "Subset");
             setToolTip(this.ScanEventHigh, "Highest scan event to include in the conversion (may be left blank).", "Subset");
             setToolTip(this.ScanEventLow, "Lowest scan event to include in the conversion.", "Subset");
-            setToolTip(this.CollisionEnergyLabel, "Use this filter to include only scans activated within the specified collision energy range.", "Subset");
-            setToolTip(this.CollisionEnergyHigh, "Highest collision energy to include in the conversion.", "Subset");
-            setToolTip(this.CollisionEnergyLow, "Lowest collision energy to include in the conversion.", "Subset");
             setToolTip(this.mzWinLabel, "Use this filter to include only scans with a limited range of m/z values.", "Subset");
             setToolTip(this.mzWinHigh, "Highest m/z value to include in the conversion.", "Subset");
             setToolTip(this.mzWinLow, "Lowest m/z value to include in the conversion.", "Subset");
@@ -1212,7 +1194,6 @@ namespace MSConvertGUI
             setToolTip(this.ScanSummingPrecursorToleranceTextBox, "Specify how similar two MS2 spectra's precursors must be to be considered for summing.");
             setToolTip(this.ScanSummingScanTimeToleranceTextBox, "Specify how similar two MS2 spectra's scan times must be to be considered for summing. A value of 0 specifies that a similar scan time is not required for summing.");
             setToolTip(this.ScanSummingIonMobilityToleranceTextBox, "Specify how similar two MS2 spectra's ion mobilities must be to be considered for summing. A value of 0 specifies that a similar ion mobility is not required for summing.");
-            setToolTip(this.ScanSummingSumMs1Checkbox, "Specify whether to sum MS1 scans as well as MS2s. Currently the tolerances are ignored: points are only summed within MS1 spectra, not between them.");
         }
 
         private void AboutButtonClick(object sender, EventArgs e)
@@ -1301,12 +1282,6 @@ namespace MSConvertGUI
             SelectPreset(SetDefaultsDataType == String.Empty ? "Generic Defaults" : SetDefaultsDataType + " Defaults");
         }
 
-        private void FilesToConvertInParallelUpDown_ValueChanged(object sender, EventArgs e)
-        {
-            Properties.Settings.Default.NumFilesToConvertInParallel = FilesToConvertInParallelUpDown.Value;
-            Properties.Settings.Default.Save();
-        }
-
         #region Drag 'n Drop reordering of rows
         // http://www.inforbiro.com/blog-eng/c-sharp-datagridview-drag-and-drop-rows-reorder/
         private Rectangle dragBoxFromMouseDown;
@@ -1383,16 +1358,5 @@ namespace MSConvertGUI
             };
         }
         #endregion
-
-        private void DiaUmpireParamsFileBrowseButton_Click(object sender, EventArgs e)
-        {
-            using (var ofd = new OpenFileDialog() {Title = "Pick DIA-Umpire Params File", CheckFileExists = true})
-            {
-                if (ofd.ShowDialog(this) == DialogResult.Cancel)
-                    return;
-
-                DiaUmpireParamsFileTextBox.Text = ofd.FileName;
-            }
-        }
     }
 }

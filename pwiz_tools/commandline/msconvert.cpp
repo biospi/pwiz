@@ -26,7 +26,6 @@
 #include "pwiz/data/msdata/MSDataMerger.hpp"
 #include "pwiz/data/msdata/IO.hpp"
 #include "pwiz/data/msdata/SpectrumInfo.hpp"
-#include "pwiz/data/msdata/SpectrumListWrapper.hpp"
 #include "pwiz/utility/misc/IterationListener.hpp"
 #include "pwiz/utility/misc/IntegerSet.hpp"
 #include "pwiz/analysis/spectrum_processing/SpectrumListFactory.hpp"
@@ -65,7 +64,7 @@ struct Config : public Reader::Config
     IntegerSet runIndexSet;
     bool stripLocationFromSourceFiles;
     bool stripVersionFromSoftware;
-    boost::tribool singleThreaded;
+    bool singleThreaded;
 
     Config()
         : outputPath("."), verbose(false), merge(false)
@@ -73,10 +72,10 @@ struct Config : public Reader::Config
         simAsSpectra = false;
         srmAsSpectra = false;
         combineIonMobilitySpectra = false;
-        reportSonarBins = false;
         unknownInstrumentIsError = true;
         stripLocationFromSourceFiles = false;
         stripVersionFromSoftware = false;
+        singleThreaded = false;
     }
 
     string outputFilename(const string& inputFilename, const MSData& inputMSData) const;
@@ -105,6 +104,7 @@ string Config::outputFilename(const string& filename, const MSData& msd) const
             extension == ".cms1" ||
             extension == ".ms2" ||
             extension == ".cms2" ||
+            extension == ".mzmlb" ||
             extension == ".mz5")
             runId = bfs::basename(runId);
     }
@@ -189,6 +189,9 @@ Config parseCommandLine(int argc, char** argv)
     bool format_CMS1 = false;
     bool format_MS2 = false;
     bool format_CMS2 = false;
+    bool format_mzMLb = false;
+    int mzMLb_compression_level = 0;
+	int mzMLb_chunk_size = 0;    
     bool format_mz5 = false;
     bool precision_32 = false;
     bool precision_64 = false;
@@ -196,6 +199,12 @@ Config parseCommandLine(int argc, char** argv)
     bool mz_precision_64 = false;
     bool intensity_precision_32 = false;
     bool intensity_precision_64 = false;
+    int mz_truncation = 0;
+	int intensity_truncation = 0;
+	bool mz_delta = false;
+	bool intensity_delta = false;
+	bool mz_linear = false;
+	bool intensity_linear = false;
     bool noindex = false;
     bool zlib = false;
     bool gzip = false;
@@ -213,7 +222,6 @@ Config parseCommandLine(int argc, char** argv)
     string runIndexSet;
     bool detailedHelp = false;
     string helpForFilter;
-    bool showExamples = false;
 
     pair<int, int> consoleBounds = get_console_bounds(); // get platform-specific console bounds, or default values if an error occurs
 
@@ -237,6 +245,9 @@ Config parseCommandLine(int argc, char** argv)
 #ifndef WITHOUT_MZ5
             "|mz5"
 #endif
+#ifndef WITHOUT_MZMLB
+            "|mzMLb"
+#endif
             "]")
         ("mzML",
             po::value<bool>(&format_mzML)->zero_tokens(),
@@ -248,6 +259,17 @@ Config parseCommandLine(int argc, char** argv)
         ("mz5",
             po::value<bool>(&format_mz5)->zero_tokens(),
             ": write mz5 format")
+#endif
+#ifndef WITHOUT_MZMLB
+        ("mzMLb",
+            po::value<bool>(&format_mzMLb)->zero_tokens(),
+            ": write mzMLb format")
+		("mzMLbChunkSize",
+            po::value<int>(&mzMLb_chunk_size)->default_value(1048576),
+            ": mzMLb dataset chunk size in bytes")
+        ("mzMLbCompressionLevel",
+            po::value<int>(&mzMLb_compression_level)->default_value(0),
+            ": mzMLb GZIP compression level (0-9)")
 #endif
         ("mgf",
             po::value<bool>(&format_MGF)->zero_tokens(),
@@ -288,6 +310,24 @@ Config parseCommandLine(int argc, char** argv)
         ("inten32",
             po::value<bool>(&intensity_precision_32)->zero_tokens(),
             ": encode intensity values in 32-bit precision [default]")
+        ("mzTruncation",
+			po::value<int>(&mz_truncation)->default_value(0),
+			": Number of mantissa precision bits to truncate for mz and rt, or if -1 will store integers only")
+		("intenTruncation",
+			po::value<int>(&intensity_truncation)->default_value(0),
+			": Number of mantissa precision bits to truncate for intensities, or if -1 will store integers only")
+		("mzDelta",
+            po::value<bool>(&mz_delta)->zero_tokens(),
+			": apply delta prediction to mz and rt values")
+		("intenDelta",
+			po::value<bool>(&intensity_delta)->zero_tokens(),
+			": apple delta prediction to intensity values")
+		("mzLinear",
+			po::value<bool>(&mz_linear)->zero_tokens(),
+			": apply linear prediction to mz and rt values")
+		("intenLinear",
+			po::value<bool>(&intensity_linear)->zero_tokens(),
+			": apply linear prediction to intensity values")
         ("noindex",
             po::value<bool>(&noindex)->zero_tokens(),
             ": do not write index")
@@ -335,13 +375,10 @@ Config parseCommandLine(int argc, char** argv)
             ": write selected reaction monitoring as spectra, not chromatograms")
         ("combineIonMobilitySpectra",
             po::value<bool>(&config.combineIonMobilitySpectra)->zero_tokens(),
-            ": write all ion mobility or Waters SONAR bins/scans in a frame/block as one spectrum instead of individual spectra")
+            ": write all drift bins/scans in a frame/block as one spectrum instead of individual spectra")
         ("acceptZeroLengthSpectra",
             po::value<bool>(&config.acceptZeroLengthSpectra)->zero_tokens(),
             ": some vendor readers have an efficient way of filtering out empty spectra, but it takes more time to open the file")
-        ("ignoreMissingZeroSamples",
-            po::value<bool>(&config.ignoreZeroIntensityPoints)->zero_tokens()->default_value(config.ignoreZeroIntensityPoints),
-            ": some vendor readers do not include zero samples in their profile data; the default behavior is to add the zero samples but this option disables that")
         ("ignoreUnknownInstrumentError",
             po::value<bool>(&config.unknownInstrumentIsError)->zero_tokens()->default_value(!config.unknownInstrumentIsError),
             ": if true, if an instrument cannot be determined from a vendor file, it will not be an error")
@@ -352,7 +389,7 @@ Config parseCommandLine(int argc, char** argv)
             po::value<bool>(&config.stripVersionFromSoftware)->zero_tokens(),
             ": if true, software elements will be stripped of version information, so the same file converted with different versions will produce the same mzML")
         ("singleThreaded",
-            po::value<boost::tribool>(&config.singleThreaded)->implicit_value(true)->default_value(boost::indeterminate),
+            po::value<bool>(&config.singleThreaded)->zero_tokens(),
             ": if true, reading and writing spectra will be done on a single thread")
         ("help",
             po::value<bool>(&detailedHelp)->zero_tokens(),
@@ -360,9 +397,6 @@ Config parseCommandLine(int argc, char** argv)
         ("help-filter",
             po::value<string>(&helpForFilter),
             ": name of a single filter to get detailed help for")
-        ("show-examples",
-            po::value<bool>(&showExamples)->zero_tokens(),
-            ": show examples of how to run msconvert.exe")
         ;
 
     // handle positional arguments
@@ -395,8 +429,14 @@ Config parseCommandLine(int argc, char** argv)
     {
         usage << SpectrumListFactory::usage(helpForFilter) << endl;
     }
-    else if (showExamples)
+    else
     {
+        // append options description to usage string
+        usage << od_config;
+
+        // extra usage
+        usage << SpectrumListFactory::usage(detailedHelp, "run this command with --help to see more detail", consoleBounds.first) << endl;
+
         usage << "Examples:\n"
               << endl
               << "# convert data.RAW to data.mzML\n"
@@ -459,18 +499,9 @@ Config parseCommandLine(int argc, char** argv)
               << "filter=\"index [3,7]\"\n"
               << "filter=\"precursorRecalculation\"\n"
               << endl
-              << endl;
-    }
-    else
-    {
-        // append options description to usage string
-        usage << od_config;
+              << endl
 
-        // extra usage
-        usage << SpectrumListFactory::usage(detailedHelp, "(run this program with --help to see details for all filters)", consoleBounds.first);
-        usage << ChromatogramListFactory::usage(detailedHelp, nullptr, consoleBounds.first) << endl;
-
-        usage << "Questions, comments, and bug reports:\n"
+              << "Questions, comments, and bug reports:\n"
               << "https://github.com/ProteoWizard\n"
               << "support@proteowizard.org\n"
               << "\n"
@@ -478,7 +509,7 @@ Config parseCommandLine(int argc, char** argv)
               << "Build date: " << __DATE__ << " " << __TIME__ << endl;
     }
 
-    if ((argc <= 1) || detailedHelp || !helpForFilter.empty() || showExamples)
+    if ((argc <= 1) || detailedHelp || !helpForFilter.empty())
         throw usage_exception(usage.str().c_str());
 
     // parse config file if required
@@ -528,7 +559,7 @@ Config parseCommandLine(int argc, char** argv)
         while (is)
         {
             string filename;
-            getlinePortable(is, filename);
+            getline(is, filename);
             if (is) config.filenames.push_back(filename);
         }
     }
@@ -565,7 +596,7 @@ Config parseCommandLine(int argc, char** argv)
     if (config.filenames.empty())
         throw user_error("[msconvert] No files specified.");
 
-    int count = format_text + format_mzML + format_mzXML + format_MGF + format_MS2 + format_CMS2 + format_mz5;
+    int count = format_text + format_mzML + format_mzXML + format_MGF + format_MS2 + format_CMS2 + format_mz5 + format_mzMLb;
     if (count > 1) throw user_error("[msconvert] Multiple format flags specified.");
     if (format_text) config.writeConfig.format = MSDataFile::Format_Text;
     if (format_mzML) config.writeConfig.format = MSDataFile::Format_mzML;
@@ -576,6 +607,8 @@ Config parseCommandLine(int argc, char** argv)
     if (format_MS2) config.writeConfig.format = MSDataFile::Format_MS2;
     if (format_CMS2) config.writeConfig.format = MSDataFile::Format_CMS2;
     if (format_mz5) config.writeConfig.format = MSDataFile::Format_MZ5;
+    if (format_mzMLb) config.writeConfig.format = MSDataFile::Format_mzMLb;
+
 
     config.writeConfig.gzipped = gzip; // if true, file is written as .gz
 
@@ -607,6 +640,12 @@ Config parseCommandLine(int argc, char** argv)
             case MSDataFile::Format_CMS2:
                 config.extension = ".cms2";
                 break;
+            case MSDataFile::Format_mzMLb:
+#ifdef WITHOUT_MZMLB
+				throw user_error("[msconvert] Not built with mzMLb support.");
+#endif
+				config.extension = ".mzMLb";
+				break;                
             case MSDataFile::Format_MZ5:
 #ifdef WITHOUT_MZ5
                 throw user_error("[msconvert] Not built with mz5 support."); 
@@ -621,6 +660,23 @@ Config parseCommandLine(int argc, char** argv)
             config.extension += ".gz";
         }
     }
+
+    // handle prediction flags
+	if (intensity_delta)
+		config.writeConfig.binaryDataEncoderConfig.predictionOverrides[MS_intensity_array] = BinaryDataEncoder::Prediction_Delta;
+	if (mz_delta)
+	{
+		config.writeConfig.binaryDataEncoderConfig.predictionOverrides[MS_m_z_array] = BinaryDataEncoder::Prediction_Delta;
+		config.writeConfig.binaryDataEncoderConfig.predictionOverrides[MS_time_array] = BinaryDataEncoder::Prediction_Delta;
+	}
+	if (intensity_linear)
+		config.writeConfig.binaryDataEncoderConfig.predictionOverrides[MS_intensity_array] = BinaryDataEncoder::Prediction_Linear;
+	if (mz_linear)
+	{
+		config.writeConfig.binaryDataEncoderConfig.predictionOverrides[MS_m_z_array] = BinaryDataEncoder::Prediction_Linear;
+		config.writeConfig.binaryDataEncoderConfig.predictionOverrides[MS_time_array] = BinaryDataEncoder::Prediction_Linear;
+	}
+ 
 
     // precision defaults
 
@@ -659,13 +715,28 @@ Config parseCommandLine(int argc, char** argv)
     if (intensity_precision_64)
         config.writeConfig.binaryDataEncoderConfig.precisionOverrides[MS_intensity_array] = BinaryDataEncoder::Precision_64;
 
+    if (mz_truncation != 0)
+		config.writeConfig.binaryDataEncoderConfig.truncationOverrides[MS_m_z_array] = mz_truncation;
+	if (intensity_truncation != 0)
+		config.writeConfig.binaryDataEncoderConfig.truncationOverrides[MS_intensity_array] = intensity_truncation;
+
     // other flags
 
     if (noindex)
         config.writeConfig.indexed = false;
 
-    if (zlib)
+    if (zlib || mzMLb_compression_level > 0)
+    {
         config.writeConfig.binaryDataEncoderConfig.compression = BinaryDataEncoder::Compression_Zlib;
+        if (mzMLb_compression_level == 0)
+            config.writeConfig.mzMLb_compression_level = 4;            
+        else
+            config.writeConfig.mzMLb_compression_level = mzMLb_compression_level;                       
+    }
+ 
+    config.writeConfig.mzMLb_chunk_size = mzMLb_chunk_size;
+
+    config.writeConfig.useWorkerThreads = !config.singleThreaded;
 
     if ((ms_numpress_slof>=0) && ms_numpress_pic)
         throw user_error("[msconvert] Incompatible compression flags 'numpressPic' and 'numpressSlof'.");
@@ -740,45 +811,17 @@ void stripSoftwareVersion(MSData& msd)
 class UserFeedbackIterationListener : public IterationListener
 {
     std::streamoff longestMessage;
-    std::hash<string> hasher;
-    size_t lastMessageHash;
-    size_t lastIterationIndex;
-    size_t lastIterationCount;
-
-    bool updateHashIfNewMessage(const string& newMessage)
-    {
-        size_t newMessageHash = hasher(newMessage);
-        if (newMessageHash == lastMessageHash)
-            return false;
-        lastMessageHash = newMessageHash;
-        return true;
-    }
 
     public:
 
     UserFeedbackIterationListener()
     {
         longestMessage = 0;
-        lastMessageHash = 0;
-        lastIterationIndex = 0;
-        lastIterationCount = 0;
     }
 
     virtual Status update(const UpdateMessage& updateMessage)
     {
-        bool messageIsChanged = updateHashIfNewMessage(updateMessage.message);
-
-        // skip update if nothing has changed (update was purely to allow for cancellation)
-        if (!messageIsChanged && updateMessage.iterationIndex == lastIterationIndex && updateMessage.iterationCount == lastIterationCount)
-            return Status_Ok;
-
-        lastIterationIndex = updateMessage.iterationIndex;
-        lastIterationCount = updateMessage.iterationCount;
-
-        // spectrum and chromatogram lists both iterate; put them on different lines
-        if (messageIsChanged || (updateMessage.message.empty() && updateMessage.iterationIndex + 1 >= updateMessage.iterationCount))
-            *os_ << endl;
-
+        
         stringstream updateString;
         if (updateMessage.message.empty())
             updateString << updateMessage.iterationIndex + 1 << "/" << updateMessage.iterationCount;
@@ -789,6 +832,9 @@ class UserFeedbackIterationListener : public IterationListener
         updateString << string(longestMessage - updateString.tellp(), ' '); // add whitespace to erase all of the previous line
         *os_ << updateString.str() << "\r" << flush;
 
+        // spectrum and chromatogram lists both iterate; put them on different lines
+        if (updateMessage.iterationIndex+1 == updateMessage.iterationCount)
+            *os_ << endl;
         return Status_Ok;
     }
 };
@@ -849,23 +895,17 @@ int mergeFiles(const vector<string>& filenames, const Config& config, const Read
     {
         MSDataMerger msd(msdList);
 
+        *os_ << "calculating source file checksums" << endl;
+        calculateSHA1Checksums(msd);
+
         if (!config.contactFilename.empty())
             addContactInfo(msd, config.contactFilename);
 
         SpectrumListFactory::wrap(msd, config.filters, pILR);
         ChromatogramListFactory::wrap(msd, config.chromatogramFilters, pILR);
 
-        *os_ << "calculating source file checksums" << endl;
-        calculateSHA1Checksums(msd);
-
-        // if config.singleThreaded is not explicitly set, determine whether to use worker threads by querying SpectrumListWrappers
-        Config configCopy(config);
-        if (boost::indeterminate(config.singleThreaded) && boost::dynamic_pointer_cast<SpectrumListWrapper>(msd.run.spectrumListPtr) != nullptr)
-            configCopy.singleThreaded = !boost::dynamic_pointer_cast<SpectrumListWrapper>(msd.run.spectrumListPtr)->benefitsFromWorkerThreads();
-        configCopy.writeConfig.useWorkerThreads = !bool(config.singleThreaded);
-
         string outputFilename = config.outputFilename("merged-spectra", msd);
-        *os_ << endl << "writing output file: " << outputFilename << endl;
+        *os_ << "writing output file: " << outputFilename << endl;
 
         if (config.stripLocationFromSourceFiles)
             stripSourceFileLocation(msd);
@@ -874,9 +914,9 @@ int mergeFiles(const vector<string>& filenames, const Config& config, const Read
             stripSoftwareVersion(msd);
 
         if (config.outputPath == "-")
-            MSDataFile::write(msd, cout, configCopy.writeConfig);
+            MSDataFile::write(msd, cout, config.writeConfig);
         else
-            MSDataFile::write(msd, outputFilename, configCopy.writeConfig, pILR);
+            MSDataFile::write(msd, outputFilename, config.writeConfig, pILR);
     }
     catch (exception& e)
     {
@@ -922,13 +962,15 @@ void processFile(const string& filename, const Config& config, const ReaderList&
             throw user_error("[msconvert] No runs correspond to the specified indices");
     }
 
-    int failedRuns = 0;
-
     for (size_t i=0; i < msdList.size(); ++i)
     {
         MSData& msd = *msdList[i];
         try
         {
+            *os_ << "calculating source file checksums" << endl;
+            os_->flush();
+            calculateSHA1Checksums(msd);
+
             // process the data 
 
             if (!config.contactFilename.empty())
@@ -937,19 +979,9 @@ void processFile(const string& filename, const Config& config, const ReaderList&
             SpectrumListFactory::wrap(msd, config.filters, pILR);
             ChromatogramListFactory::wrap(msd, config.chromatogramFilters, pILR);
 
-            *os_ << "calculating source file checksums" << endl;
-            calculateSHA1Checksums(msd);
-
-            // if config.singleThreaded is not explicitly set, determine whether to use worker threads by querying SpectrumListWrappers
-            Config configCopy(config);
-            if (boost::indeterminate(config.singleThreaded) && boost::dynamic_pointer_cast<SpectrumListWrapper>(msd.run.spectrumListPtr) != nullptr)
-                configCopy.singleThreaded = !boost::dynamic_pointer_cast<SpectrumListWrapper>(msd.run.spectrumListPtr)->benefitsFromWorkerThreads();
-            configCopy.writeConfig.useWorkerThreads = !bool(configCopy.singleThreaded);
-
             // write out the new data file
             string outputFilename = config.outputFilename(filename, msd);
-            //*os_ << "writing output file" << (configCopy.writeConfig.useWorkerThreads ? " (multithreaded)" : "") << ": " << outputFilename << endl;
-            *os_ << endl << "writing output file: " << outputFilename << endl;
+            *os_ << "writing output file: " << outputFilename << endl;
 
             if (config.stripLocationFromSourceFiles)
                 stripSourceFileLocation(msd);
@@ -958,7 +990,7 @@ void processFile(const string& filename, const Config& config, const ReaderList&
                 stripSoftwareVersion(msd);
 
             if (config.outputPath == "-")
-                MSDataFile::write(msd, cout, configCopy.writeConfig, pILR);
+                MSDataFile::write(msd, cout, config.writeConfig, pILR);
             else
             {
                 // String compare of filenames is case-sensitive, which is a problem on Windows. bfs::equivalent() fixes this.
@@ -966,23 +998,15 @@ void processFile(const string& filename, const Config& config, const ReaderList&
                 {
                     throw user_error("[msconvert] Output filepath is the same as input filepath");
                 }
-                MSDataFile::write(msd, outputFilename, configCopy.writeConfig, pILR);
+                MSDataFile::write(msd, outputFilename, config.writeConfig, pILR);
             }
-        }
-        catch (user_error&)
-        {
-            throw;
         }
         catch (exception& e)
         {
-            cerr << "Error writing run " << (i+1) << ":\n" << e.what() << endl;
-            ++failedRuns;
+            cerr << "Error writing run " << (i+1) << " in " << bfs::path(filename).leaf() << ":\n" << e.what() << endl;
         }
     }
     *os_ << endl;
-
-    if (failedRuns > 0)
-        throw runtime_error("Conversion failed for " + toString(failedRuns) + " runs in " + bfs::path(filename).leaf().string() + ".");
 }
 
 
@@ -1013,10 +1037,6 @@ int go(const Config& config)
             try
             {
                 processFile(*it, config, readers);
-            }
-            catch (user_error&)
-            {
-                throw;
             }
             catch (exception& e)
             {

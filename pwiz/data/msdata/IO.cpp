@@ -29,6 +29,9 @@
 #include "pwiz/utility/misc/Filesystem.hpp"
 #include "pwiz/utility/misc/Std.hpp"
 #include "SpectrumWorkerThreads.hpp"
+#ifndef WITHOUT_MZMLB
+#include "mzmlb/Connection_mzMLb.hpp"
+#endif
 
 namespace pwiz {
 namespace msdata {

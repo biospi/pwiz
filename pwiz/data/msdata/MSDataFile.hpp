@@ -46,7 +46,8 @@ struct PWIZ_API_DECL MSDataFile : public MSData
                bool calculateSourceFileChecksum = false);
 
     /// data format for write()
-    enum PWIZ_API_DECL Format {Format_Text, Format_mzML, Format_mzXML, Format_MGF, Format_MS1, Format_CMS1, Format_MS2, Format_CMS2, Format_MZ5};
+    enum PWIZ_API_DECL Format {Format_Text, Format_mzML, Format_mzXML, Format_MGF, Format_MS1, Format_CMS1, Format_MS2, Format_CMS2, Format_MZ5, Format_mzMLb};
+
 
     /// configuration for write()
     struct PWIZ_API_DECL WriteConfig
@@ -57,8 +58,12 @@ struct PWIZ_API_DECL MSDataFile : public MSData
 		bool gzipped; // if true, file is written as .gz
         bool useWorkerThreads;
 
-        WriteConfig(Format _format = Format_mzML,bool _gzipped = false)
-        :   format(_format), indexed(true), gzipped(_gzipped), useWorkerThreads(true)
+        int mzMLb_compression_level;
+        int mzMLb_chunk_size;
+
+
+    WriteConfig(Format _format = Format_mzML,bool _gzipped = false)
+        :   format(_format), indexed(true), gzipped(_gzipped), useWorkerThreads(true), mzMLb_compression_level(0), mzMLb_chunk_size(1048576)
         {}
     };
 

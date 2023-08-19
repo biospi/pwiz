@@ -26,6 +26,9 @@
 #include "pwiz/utility/minimxml/SAXParser.hpp"
 #include "boost/iostreams/positioning.hpp"
 #include "pwiz/data/msdata/IO.hpp"
+#ifndef WITHOUT_MZMLB
+#include "mzmlb/Connection_mzMLb.hpp"
+#endif
 
 using namespace pwiz::util;
 using namespace pwiz::minimxml;
@@ -266,7 +269,8 @@ class HandlerIndexCreator : public SAXParser::Handler
       spectrumIndex_(spectrumIndex),
       chromatogramCount_(chromatogramCount),
       chromatogramIndex_(chromatogramIndex),
-      legacyIdRefToNativeId(&legacyIdRefToNativeId)
+      legacyIdRefToNativeId(&legacyIdRefToNativeId),
+      ignore_(spectrumCount_ > 0)
     {
         version = schemaVersion_;
     }
@@ -275,58 +279,59 @@ class HandlerIndexCreator : public SAXParser::Handler
                                 const Attributes& attributes,
                                 stream_offset position)
     {
-        if (name == "spectrum")
+        if (!ignore_)
         {
-            SpectrumIdentityFromXML* si;
-            spectrumIndex_.push_back(SpectrumIdentityFromXML());
-            si = &spectrumIndex_.back();
-
-            getAttribute(attributes, "id", si->id);
-            getAttribute(attributes, "spotID", si->spotID);
-
-            // mzML 1.0
-            if (version == 1)
+            if (name == "spectrum")
             {
-                string idRef, nativeID;
-                getAttribute(attributes, "id", idRef);
-                getAttribute(attributes, "nativeID", nativeID);
-                if (nativeID.empty())
-                    si->id = idRef;
-                else
+                SpectrumIdentityFromXML *si;
+                spectrumIndex_.push_back(SpectrumIdentityFromXML());
+                si = &spectrumIndex_.back();
+
+                getAttribute(attributes, "id", si->id);
+                getAttribute(attributes, "spotID", si->spotID);
+
+                // mzML 1.0
+                if (version == 1)
                 {
-                    try
+                    string idRef, nativeID;
+                    getAttribute(attributes, "id", idRef);
+                    getAttribute(attributes, "nativeID", nativeID);
+                    if (nativeID.empty())
+                        si->id = idRef;
+                    else
                     {
-                        lexical_cast<int>(nativeID);
-                        si->id = "scan=" + nativeID;
+                        try
+                        {
+                            lexical_cast<int>(nativeID);
+                            si->id = "scan=" + nativeID;
+                        }
+                        catch (exception &)
+                        {
+                            si->id = nativeID;
+                        }
+                        (*legacyIdRefToNativeId)[idRef] = si->id;
                     }
-                    catch (exception&)
-                    {
-                        si->id = nativeID;
-                    }
-                    (*legacyIdRefToNativeId)[idRef] = si->id;
                 }
-            }
 
-            si->index = spectrumCount_;
-            si->sourceFilePosition = position;
+                si->index = spectrumCount_;
+                si->sourceFilePosition = position;
 
-            ++spectrumCount_;
+                ++spectrumCount_;
+            } else if (name == "chromatogram")
+            {
+                ChromatogramIdentity * ci;
+                chromatogramIndex_.push_back(ChromatogramIdentity());
+                ci = &chromatogramIndex_.back();
+
+                getAttribute(attributes, "id", ci->id);
+
+                ci->index = chromatogramCount_;
+                ci->sourceFilePosition = position;
+
+                ++chromatogramCount_;
+            } else if (name == "indexList")
+                return Status::Done;
         }
-        else if (name == "chromatogram")
-        {
-            ChromatogramIdentity* ci;
-            chromatogramIndex_.push_back(ChromatogramIdentity());
-            ci = &chromatogramIndex_.back();
-
-            getAttribute(attributes, "id", ci->id);
-
-            ci->index = chromatogramCount_;
-            ci->sourceFilePosition = position;
-
-            ++chromatogramCount_;
-        }
-        else if (name == "indexList")
-            return Status::Done;
 
         return Status::Ok;
     }
@@ -337,6 +342,7 @@ class HandlerIndexCreator : public SAXParser::Handler
     size_t& chromatogramCount_;
     vector<ChromatogramIdentity>& chromatogramIndex_;
     map<string, string>* legacyIdRefToNativeId;
+    bool ignore_;
 };
 
 } // namespace
@@ -396,6 +402,74 @@ void Index_mzML::Impl::createIndex() const
     }
     catch (runtime_error&)
     {
+#ifndef WITHOUT_MZMLB
+        boost::iostreams::stream<Connection_mzMLb>* mzMLb_is = dynamic_cast<boost::iostreams::stream<Connection_mzMLb>*>(&*is_);
+        if (mzMLb_is)
+        {
+
+            if ((*mzMLb_is)->exists("mzML_spectrumIndex"))
+            {
+                std::vector<long long> positions((*mzMLb_is)->size("mzML_spectrumIndex"));
+                (*mzMLb_is)->read("mzML_spectrumIndex", &positions[0], positions.size());
+
+                {
+                    streamsize size = (*mzMLb_is)->size("mzML_spectrumIndex_idRef");
+                    char* buf = new char[size];
+                    (*mzMLb_is)->read("mzML_spectrumIndex_idRef", buf, size);
+                    istringstream idRefs(string(buf, size));
+                    delete buf;
+
+                    for (size_t i = 0; i < positions.size() - 1; i++)
+                    {
+                        spectrumIndex_.push_back(SpectrumIdentityFromXML());
+                        spectrumIndex_.back().index = spectrumCount_;
+                        getline(idRefs, spectrumIndex_.back().id, '\0');
+                        spectrumIndex_.back().sourceFilePosition = positions[i];
+                        ++spectrumCount_;
+                    }
+
+                }
+
+
+                if ((*mzMLb_is)->exists("mzML_spectrumIndex_spotID"))
+                {
+                    streamsize size = (*mzMLb_is)->size("mzML_spectrumIndex_spotID");
+                    char* buf = new char[size];
+                    (*mzMLb_is)->read("mzML_spectrumIndex_spotID", buf, size);
+                    istringstream spotIDs(string(buf, size));
+                    delete buf;
+
+                    for (size_t i = 0; i < positions.size() - 1; i++)
+                        getline(spotIDs, spectrumIndex_.back().spotID, '\0');
+                }
+            }
+
+            if ((*mzMLb_is)->exists("mzML_chromatogramIndex"))
+            {
+                std::vector<long long> positions((*mzMLb_is)->size("mzML_chromatogramIndex"));
+                (*mzMLb_is)->read("mzML_chromatogramIndex", &positions[0], positions.size());
+
+                streamsize size = (*mzMLb_is)->size("mzML_chromatogramIndex_idRef");
+                char* buf = new char[size];
+                (*mzMLb_is)->read("mzML_chromatogramIndex_idRef", buf, size);
+                istringstream idRefs(string(buf, size));
+                delete buf;
+
+                for (size_t i = 0; i < positions.size() - 1; i++)
+                {
+                    chromatogramIndex_.push_back(ChromatogramIdentity());
+                    chromatogramIndex_.back().index = chromatogramCount_;
+                    getline(idRefs, chromatogramIndex_.back().id, '\0');
+                    chromatogramIndex_.back().sourceFilePosition = positions[i];
+                    ++chromatogramCount_;
+                }
+            }
+
+            spectrumCount_ = 0;
+            chromatogramCount_ = 0;
+        }
+#endif
+
         // TODO: log warning that the index was corrupt/missing
         is_->clear();
         is_->seekg(0);

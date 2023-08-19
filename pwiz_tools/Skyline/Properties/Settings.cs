@@ -35,7 +35,6 @@ using pwiz.Skyline.Model.Irt;
 using pwiz.Skyline.Model.Lib;
 using pwiz.Skyline.Model.Optimization;
 using pwiz.Skyline.Model.Proteome;
-using pwiz.Skyline.Model.Results.RemoteApi;
 using pwiz.Skyline.Model.Results.Scoring;
 using pwiz.Skyline.Model.RetentionTimes;
 using pwiz.Skyline.Model.Tools;
@@ -45,11 +44,11 @@ using pwiz.Skyline.SettingsUI.Irt;
 using pwiz.Skyline.ToolsUI;
 using pwiz.Skyline.Util;
 using System.Windows.Forms;
+using pwiz.Common.Chemistry;
 using pwiz.Common.Collections;
 using pwiz.ProteowizardWrapper;
 using pwiz.Skyline.Controls.Graphs;
 using pwiz.Skyline.Model.DocSettings.AbsoluteQuantification;
-using pwiz.Skyline.Model.DocSettings.MetadataExtraction;
 using pwiz.Skyline.Model.GroupComparison;
 using pwiz.Skyline.Model.Lists;
 using pwiz.Skyline.Model.Results;
@@ -1313,6 +1312,12 @@ namespace pwiz.Skyline.Properties
                        };
         }
 
+        public void ResetDefaults()
+        {
+            Clear();
+            AddDefaults();
+        }
+
         public static readonly ToolDescription DEPRECATED_QUASAR = new ToolDescription(@"QuaSAR",
                                                                               @"http://genepattern.broadinstitute.org/gp/pages/index.jsf?lsid=QuaSAR",
                                                                               string.Empty);
@@ -1458,6 +1463,17 @@ namespace pwiz.Skyline.Properties
                     return editServer.Server;
 
                 return null;
+            }
+        }
+
+        public Server EditCredentials(Control owner, Server item, IEnumerable<Server> existing, string username, string password)
+        {
+            using (var editServerDlg = new EditServerDlg(existing ?? this) { Server = item })
+            {
+                editServerDlg.Username = username;
+                editServerDlg.Password = password;
+                editServerDlg.textServerURL.Enabled = false;
+                return editServerDlg.ShowDialog(owner) == DialogResult.OK ? editServerDlg.Server : null;
             }
         }
 
@@ -2961,7 +2977,8 @@ namespace pwiz.Skyline.Properties
                         new[] {IsotopeLabelType.heavy}
                     ),
                     new PeptideIntegration(null), 
-                    BackgroundProteome.NONE
+                    BackgroundProteome.NONE,
+                    ProteinAssociation.ParsimonySettings.DEFAULT
                 ),
                 new TransitionSettings
                 (
@@ -2992,7 +3009,7 @@ namespace pwiz.Skyline.Properties
                     ), 
                     new TransitionLibraries
                     (
-                        0.5,    // IonMatchTolerance
+                        new MzTolerance(0.5),    // IonMatchTolerance
                         0,      // MinIonCount
                         3,      // IonCount
                         TransitionLibraryPick.all  // Pick

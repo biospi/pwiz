@@ -24,7 +24,6 @@ using System.Drawing;
 using System.Linq;
 using System.Windows.Forms;
 using pwiz.Common.Collections;
-using pwiz.Common.Controls;
 using pwiz.Common.DataBinding.Documentation;
 using pwiz.Common.Properties;
 using pwiz.Common.SystemUtil;
@@ -38,6 +37,7 @@ namespace pwiz.Common.DataBinding.Controls.Editor
     {
         private bool _inChangeView;
         private bool _showHiddenFields;
+        private bool _alphabetical;
 
         // ReSharper disable PrivateFieldCanBeConvertedToLocalVariable
         private readonly ChooseColumnsTab _chooseColumnsTab;
@@ -206,6 +206,25 @@ namespace pwiz.Common.DataBinding.Controls.Editor
                 _showHiddenFields = value;
                 toolButtonShowHiddenColumns.Checked = ShowHiddenFields;
                 ViewChange?.Invoke(this, new EventArgs());
+            }
+        }
+
+        public bool Alphabetical
+        {
+            get
+            {
+                return _alphabetical;
+            }
+            set
+            {
+                if (Alphabetical == value)
+                {
+                    return;
+                }
+
+                _alphabetical = value;
+                toolButtonAlphabetical.Checked = Alphabetical;
+                ViewChange?.Invoke(this, EventArgs.Empty);
             }
         }
 
@@ -531,6 +550,11 @@ namespace pwiz.Common.DataBinding.Controls.Editor
         private void showSourceTabMenuItem_Click(object sender, EventArgs e)
         {
             ShowSourceTab = !ShowSourceTab;
+        }
+
+        private void toolButtonAlphabetical_Click(object sender, EventArgs e)
+        {
+            Alphabetical = !Alphabetical;
         }
     }
 }

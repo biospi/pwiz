@@ -26,6 +26,7 @@ using System.Reflection;
 using System.Text;
 using System.Windows.Forms;
 using Microsoft.Win32;
+using pwiz.Common.SystemUtil;
 using pwiz.Skyline.Alerts;
 using pwiz.Skyline.Controls;
 using pwiz.Skyline.Model.Tools;
@@ -156,7 +157,7 @@ namespace pwiz.Skyline.ToolsUI
 
         private string DownloadPath { get; set; }
 
-        private void DownloadR(ILongWaitBroker longWaitBroker)
+        private void DownloadR(IProgressMonitor longWaitBroker)
         {
             // the repository containing the downloadable R exes
             const string baseUri = "http://cran.r-project.org/bin/windows/base/";
@@ -178,12 +179,13 @@ namespace pwiz.Skyline.ToolsUI
                 var recentUri = new Uri(baseUri + exe);
                 var olderUri = new Uri(baseUri + @"old/" + _version + @"/" + exe);
 
-                if (!webClient.DownloadFileAsync(recentUri, DownloadPath) && !webClient.DownloadFileAsync(olderUri, DownloadPath))
+                Exception downloadException;
+                if (!webClient.DownloadFileAsync(recentUri, DownloadPath, out downloadException) && !webClient.DownloadFileAsync(olderUri, DownloadPath, out downloadException))
                     throw new ToolExecutionException(
                         TextUtil.LineSeparate(
                             Resources.RInstaller_DownloadR_Download_failed_,
                             Resources
-                                .RInstaller_DownloadPackages_Check_your_network_connection_or_contact_the_tool_provider_for_installation_support_));
+                                .RInstaller_DownloadPackages_Check_your_network_connection_or_contact_the_tool_provider_for_installation_support_), downloadException);
             }
         }
 

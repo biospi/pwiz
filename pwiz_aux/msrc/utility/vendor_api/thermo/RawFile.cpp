@@ -375,7 +375,8 @@ RawFileImpl::RawFileImpl(const string& filename)
 #endif
         }
 
-        instrumentModel_ = parseInstrumentModelType(modelString);
+        if (instrumentModel_ == InstrumentModelType_Unknown)
+            instrumentModel_ = parseInstrumentModelType(modelString);
         if (instrumentModel_ == InstrumentModelType_Unknown)
             instrumentModel_ = parseInstrumentModelType(nameString);
 
@@ -584,7 +585,7 @@ void RawFileImpl::setCurrentController(ControllerType type, long controllerNumbe
     }
     CATCH_AND_FORWARD
 #else
-    raw_->SelectInstrument((Thermo::Device) type, controllerNumber);
+    try { raw_->SelectInstrument((Thermo::Device)type, controllerNumber); } CATCH_AND_FORWARD
     getRawByThread(0)->setCurrentController(type, controllerNumber);
 #endif
 }
@@ -1269,6 +1270,7 @@ void ScanInfoImpl::reinitialize(const string& filter)
 
 void ScanInfoImpl::initialize()
 {
+    bool goodFilter = false;
     try
     {
         scanSegment_ = 0;
@@ -1336,6 +1338,7 @@ void ScanInfoImpl::initialize()
                 filter_ = rawfile_->raw_->GetFilterForScanNumber(scanNumber_);
 #endif
             }
+            goodFilter = true;
 
 #ifndef _WIN64
             long isUniformTime = 0;
@@ -1396,7 +1399,7 @@ void ScanInfoImpl::initialize()
             }
         }
     }
-    CATCH_AND_FORWARD_EX(filter())
+    CATCH_AND_FORWARD_EX((goodFilter ? filter() : ("corrupt scan filter for scan " + lexical_cast<string>(scanNumber_))))
 }
 
 void ScanInfoImpl::initStatusLog() const
@@ -1915,6 +1918,7 @@ void RawFileImpl::parseInstrumentMethod()
     sregex isolationMzOffsetRegex = sregex::compile("\\s*Isolation m/z Offset =\\s*(\\S+)\\s*");
     sregex reportedMassRegex = sregex::compile("\\s*Reported Mass =\\s*(\\S+) Mass\\s*");
     sregex scanDescriptionRegex = sregex::compile("\\s*Scan Description =\\s*(\\S+)\\s*");
+    sregex statusLogInstrumentModelRegex = sregex::compile("\\s*Instrument model\\s*-\\s*(.+)\\s*");
 
     smatch what;
     string line;
@@ -1927,6 +1931,12 @@ void RawFileImpl::parseInstrumentMethod()
         if (regex_match(line, what, scanSegmentRegex))
         {
             scanSegment = lexical_cast<int>(what[1]);
+            continue;
+        }
+
+        if (regex_match(line, what, statusLogInstrumentModelRegex))
+        {
+            instrumentModel_ = parseInstrumentModelType(what[1]);
             continue;
         }
 
@@ -2270,7 +2280,7 @@ vector<string> RawFileImpl::getInstrumentMethods() const
             checkResult(raw_->GetInstMethodNames(&size, &variantLabels));
             InstrumentMethodLabelValueArray methods(variantLabels, size, raw_);
             for (int i = 0; i < size; ++i)
-                result.push_back(methods.value(i));
+                result.emplace_back(methods.value(i));
         }
         catch (exception&)
         {
@@ -2278,7 +2288,10 @@ vector<string> RawFileImpl::getInstrumentMethods() const
         }
 #else
         for (int i = 0; i < raw_->InstrumentMethodsCount; ++i)
-            result.push_back(ToStdString(raw_->GetInstrumentMethod(i)));
+            result.emplace_back(ToStdString(raw_->GetInstrumentMethod(i)));
+        auto firstStatusLog = raw_->GetStatusLogForRetentionTime(0);
+        for (int i = 0; i < firstStatusLog->Length; ++i)
+            result.emplace_back(ToStdString(firstStatusLog->Labels[i] + " " + firstStatusLog->Values[i]));
 #endif
         return result;
     }

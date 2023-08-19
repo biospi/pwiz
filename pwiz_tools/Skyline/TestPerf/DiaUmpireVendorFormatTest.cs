@@ -22,7 +22,6 @@ using System.Linq;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using pwiz.Common.Chemistry;
 using pwiz.ProteowizardWrapper;
-using pwiz.Skyline;
 using pwiz.Skyline.FileUI;
 using pwiz.Skyline.FileUI.PeptideSearch;
 using pwiz.Skyline.Model;
@@ -74,12 +73,12 @@ namespace TestPerf
         }
         private string RootName { get; set; }
 
-        [TestMethod]
+        [TestMethod, 
+         NoParallelTesting(TestExclusionReason.VENDOR_FILE_LOCKING), // Reader wants exclusive read access to raw data?
+         NoUnicodeTesting(TestExclusionReason.MZ5_UNICODE_ISSUES),
+         NoNightlyTesting(TestExclusionReason.EXCESSIVE_TIME)] // Do not run full filesets for nightly tests
         public void TestDiaUmpireWiffFile()
         {
-            // do not run full filesets for nightly tests
-            if (Program.SkylineOffscreen)
-                return;
 
             _instrumentValues = new InstrumentSpecificValues
             {
@@ -145,7 +144,7 @@ namespace TestPerf
             RunUI(() => SkylineWindow.SetIntegrateAll(true));
 
             string documentBaseName = "DIA-" + InstrumentTypeName + "-format-test";
-            string documentFile = TestContext.GetTestPath(documentBaseName + SrmDocument.EXT);
+            string documentFile = TestContext.GetTestResultsPath(documentBaseName + SrmDocument.EXT);
             RunUI(() => SkylineWindow.SaveDocument(documentFile));
 
             // Launch the wizard
@@ -224,7 +223,7 @@ namespace TestPerf
                 // Verify other values shown in the tutorial
                 Assert.AreEqual(6, importPeptideSearchDlg.TransitionSettingsControl.IonCount);
                 Assert.AreEqual(6, importPeptideSearchDlg.TransitionSettingsControl.MinIonCount);
-                Assert.AreEqual(0.05, importPeptideSearchDlg.TransitionSettingsControl.IonMatchTolerance);
+                Assert.AreEqual(0.05, importPeptideSearchDlg.TransitionSettingsControl.IonMatchMzTolerance);
                 // CONSIDER: Not that easy to validate 1, 2 in ion charges.
             });
             RunUI(() => Assert.IsTrue(importPeptideSearchDlg.ClickNextButton()));
@@ -303,7 +302,7 @@ namespace TestPerf
                 // Run the search
                 Assert.IsTrue(importPeptideSearchDlg.ClickNextButton());
 
-                importPeptideSearchDlg.SearchControl.OnSearchFinished += (success) => searchSucceeded = success;
+                importPeptideSearchDlg.SearchControl.SearchFinished += (success) => searchSucceeded = success;
                 importPeptideSearchDlg.BuildPepSearchLibControl.IncludeAmbiguousMatches = true;
             });
 

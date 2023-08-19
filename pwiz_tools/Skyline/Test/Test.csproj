@@ -102,6 +102,10 @@
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
   <ItemGroup>
+    <Reference Include="Google.Protobuf, Version=3.5.1.0, Culture=neutral, PublicKeyToken=a7d26565bac4d604, processorArchitecture=MSIL">
+      <SpecificVersion>False</SpecificVersion>
+      <HintPath>..\..\Shared\Lib\Google.Protobuf.dll</HintPath>
+    </Reference>
     <Reference Include="log4net">
       <SpecificVersion>False</SpecificVersion>
       <HintPath>..\..\Shared\Lib\log4net.dll</HintPath>
@@ -134,20 +138,27 @@
   <ItemGroup>
     <Compile Include="AddTransitionsTest.cs" />
     <Compile Include="AdductTest.cs" />
+    <Compile Include="AnalyticsTest.cs" />
     <Compile Include="AnnotationUnitTest.cs" />
     <Compile Include="AntivirusExclusionTest.cs" />
     <Compile Include="AuditLogListTest.cs" />
     <Compile Include="BilinearCurveFitTest.cs" />
     <Compile Include="BookmarkEnumeratorTest.cs" />
     <Compile Include="ChromatogramExporterTest.cs" />
+    <Compile Include="ChromatogramGroupIdsTest.cs" />
+    <Compile Include="ElibQuantifiableTransitionTest.cs" />
     <Compile Include="FastaSequenceTest.cs" />
     <Compile Include="OnDemandFeatureCalculatorTest.cs" />
     <Compile Include="FeatureTooltipTest.cs" />
     <Compile Include="CommandLinePeakBoundaryTest.cs" />
     <Compile Include="PeptideTest.cs" />
+    <Compile Include="ProtocolBuffers\GeneratedCode\LegacySkylineDocumentProto.cs" />
+    <Compile Include="ProtocolBuffers\LegacyProtocolBufferFormatsTest.cs" />
     <Compile Include="ScoreQValueMapTest.cs" />
     <Compile Include="MeasuredIonTest.cs" />
     <Compile Include="SchemaDocumentsTest.cs" />
+    <Compile Include="PeakShapeStatisticsTest.cs" />
+    <Compile Include="SpectrumClassFilterTest.cs" />
     <Compile Include="StripePainterTest.cs" />
     <Compile Include="ComplexFragmentIonTest.cs" />
     <Compile Include="ObjectSizeTest.cs" />
@@ -235,11 +246,13 @@
     <Compile Include="ToolDescriptionTest.cs" />
     <Compile Include="TransitionSettings07Test.cs" />
     <Compile Include="SubstringFinderTest.cs" />
+    <Compile Include="TypedMassTest.cs" />
     <Compile Include="TypeSafeEnumTest.cs" />
     <Compile Include="UndoManagerTest.cs" />
     <Compile Include="UniModTest.cs" />
     <Compile Include="UniquePrefixTest.cs" />
     <Compile Include="MassListInputsTest.cs" />
+    <Compile Include="EncyclopeDiaHelpersTest.cs" />
     <Compile Include="UtilTest.cs" />
     <Compile Include="VariableModTest.cs" />
     <Compile Include="WebEnabledFastaImporterTest.cs" />
@@ -249,13 +262,21 @@
       <Project>{A5527BE9-4A62-458F-AE47-F0F9204A5CF9}</Project>
       <Name>Common</Name>
     </ProjectReference>
-    <ProjectReference Include="..\..\Shared\Common\CommonUtil.csproj">
+    <ProjectReference Include="..\..\Shared\CommonUtil\CommonUtil.csproj">
       <Project>{13BF2FFB-50A1-4AB1-83A4-5733E36905CE}</Project>
       <Name>CommonUtil</Name>
+    </ProjectReference>
+    <ProjectReference Include="..\..\Shared\PanoramaClient\PanoramaClient.csproj">
+      <Project>{bf849cf8-25d7-4619-b001-9ed8e3771c44}</Project>
+      <Name>PanoramaClient</Name>
     </ProjectReference>
     <ProjectReference Include="..\..\Shared\ProteomeDb\ProteomeDb.csproj">
       <Project>{09FC3CB3-FCCD-4906-A370-160B28725936}</Project>
       <Name>ProteomeDb</Name>
+    </ProjectReference>
+    <ProjectReference Include="..\..\Shared\ProteowizardWrapper\ProteowizardWrapper.csproj">
+      <Project>{DACEE7D5-5A6A-4001-9602-FAB1A9A2DE59}</Project>
+      <Name>ProteowizardWrapper</Name>
     </ProjectReference>
     <ProjectReference Include="..\CommonTest\CommonTest.csproj">
       <Project>{3F077244-13E5-4815-BA55-31F030042E06}</Project>
@@ -272,6 +293,7 @@
   </ItemGroup>
   <ItemGroup>
     <EmbeddedResource Include="BookmarkEnumeratorTest.sky" />
+    <EmbeddedResource Include="BookmarkEnumeratorTest2.sky" />
     <None Include="ChromatogramExporterTest.zip" />
     <None Include="CommandLineAssayImportTest.zip" />
     <None Include="CommandLineImportAnnotationsTest.zip" />
@@ -280,6 +302,7 @@
     <None Include="DocLoadLibraryTest.zip" />
     <EmbeddedResource Include="explicit-losses.sky" />
     <EmbeddedResource Include="DocumentSerializerTest.sky" />
+    <None Include="ElibQuantifiableTransitionTest.zip" />
     <None Include="FullScanPrecursor.zip" />
     <None Include="LibraryRankedSpectrumInfoSpeedTest.zip" />
     <None Include="modmatch.sky" />
@@ -323,6 +346,8 @@
     <EmbeddedResource Include="Study7.sky" />
     <EmbeddedResource Include="Study7_0-7.sky" />
     <EmbeddedResource Include="SmallMoleculesMzOnly_3-7.sky" />
+    <None Include="ProtocolBuffers\generatecode.bat" />
+    <None Include="ProtocolBuffers\LegacySkylineDocumentProto.proto" />
   </ItemGroup>
   <ItemGroup>
     <BootstrapperPackage Include=".NETFramework,Version=v4.0">
@@ -350,7 +375,16 @@
     <EmbeddedResource Include="UniModHeavyList.xml" />
     <EmbeddedResource Include="UniModStaticList.xml" />
   </ItemGroup>
+  <ItemGroup>
+    <Content Include="ProtocolBuffers\GeneratedCode\readme.txt" />
+    <Content Include="ProtocolBuffers\grpc_csharp_plugin.exe" />
+    <Content Include="ProtocolBuffers\protoc.exe" />
+  </ItemGroup>
+  <ItemGroup />
   <Import Project="$(MSBuildBinPath)\Microsoft.CSharp.targets" />
+  <PropertyGroup>
+    <PreBuildEvent>$(ProjectDir)ProtocolBuffers\generatecode.bat</PreBuildEvent>
+  </PropertyGroup>
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 
        Other similar extension points exist, see Microsoft.Common.targets.
   <Target Name="BeforeBuild">

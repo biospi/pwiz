@@ -117,8 +117,7 @@ namespace pwiz.SkylineTest
             var srmSettings = SrmSettingsList.GetDefault();
             srmSettings = srmSettings.ChangeTransitionSettings(srmSettings.TransitionSettings.ChangeFilter(
                 srmSettings.TransitionSettings.Filter
-                    .ChangeFragmentRangeFirstName(TransitionFilter.StartFragmentFinder.ION_1.Name)
-                    .ChangeFragmentRangeLastName(@"last ion")
+                    .ChangeFragmentRangeAll()
                     .ChangePeptideIonTypes(new[] {IonType.precursor, IonType.y, IonType.b})
             ));
 
@@ -192,8 +191,7 @@ namespace pwiz.SkylineTest
             var srmSettings = SrmSettingsList.GetDefault();
             var transitionFilter = srmSettings.TransitionSettings.Filter;
             transitionFilter = transitionFilter
-                .ChangeFragmentRangeFirstName(TransitionFilter.StartFragmentFinder.ION_1.Name)
-                .ChangeFragmentRangeLastName(@"last ion")
+                .ChangeFragmentRangeAll()
                 .ChangePeptideIonTypes(new[]{IonType.precursor,IonType.y, IonType.b});
             srmSettings =  srmSettings.ChangeTransitionSettings(
                 srmSettings.TransitionSettings.ChangeFilter(transitionFilter));
@@ -221,8 +219,7 @@ namespace pwiz.SkylineTest
                 settings.PeptideSettings.Modifications.ChangeStaticModifications(new[] {crosslinkerDef})));
             settings = settings.ChangeTransitionSettings(settings.TransitionSettings.ChangeFilter(
                 settings.TransitionSettings.Filter
-                    .ChangeFragmentRangeFirstName(TransitionFilter.StartFragmentFinder.ION_1.Name)
-                    .ChangeFragmentRangeLastName(@"last ion")
+                    .ChangeFragmentRangeAll()
                     .ChangePeptideIonTypes(new[] { IonType.precursor, IonType.y, IonType.b })
             )); var mainPeptide = new Peptide("MERCURY");
             var transitionGroup = new TransitionGroup(mainPeptide, Adduct.DOUBLY_PROTONATED, IsotopeLabelType.light);
@@ -335,8 +332,7 @@ namespace pwiz.SkylineTest
             var srmSettings = SrmSettingsList.GetDefault();
             var transitionFilter = srmSettings.TransitionSettings.Filter;
             transitionFilter = transitionFilter
-                .ChangeFragmentRangeFirstName(TransitionFilter.StartFragmentFinder.ION_1.Name)
-                .ChangeFragmentRangeLastName(@"last ion")
+                .ChangeFragmentRangeAll()
                 .ChangePeptideIonTypes(new[] { IonType.precursor, IonType.y, IonType.b });
             srmSettings = srmSettings.ChangeTransitionSettings(
                 srmSettings.TransitionSettings.ChangeFilter(transitionFilter));
@@ -408,6 +404,174 @@ namespace pwiz.SkylineTest
                 var roundTripExplicitMods = legacyExplicitMods.ConvertFromLegacyCrosslinkStructure();
                 AssertEx.AreEqual(peptide.ExplicitMods.CrosslinkStructure, roundTripExplicitMods.CrosslinkStructure);
             }
+        }
+
+        [TestMethod]
+        public void TestIsConnectedFragmentIon()
+        {
+            var mainPeptide = new Peptide("MERCURY");
+            var linkedPeptide1 = new Peptide("ARSENIC");
+            var linkedPeptide2 = new Peptide("CALCIUM");
+
+
+            var crosslinkMod = new StaticMod("disulfide", null, null, "-H2");
+            var explicitMods = new ExplicitMods(mainPeptide, null, Array.Empty<TypedExplicitModifications>())
+                .ChangeCrosslinkStructure(new CrosslinkStructure(new[] { linkedPeptide1, linkedPeptide2 },
+                    new[]
+                    {
+                        new Crosslink(crosslinkMod, new[] { new CrosslinkSite(0, 3), new CrosslinkSite(2, 0) }),
+                        new Crosslink(crosslinkMod, new[] { new CrosslinkSite(1, 6), new CrosslinkSite(2, 3) })
+                    }));
+
+
+            var peptideStructure = new PeptideStructure(mainPeptide, explicitMods);
+            var b4_b2 = new NeutralFragmentIon(new[] { new IonOrdinal(IonType.b, 4), IonOrdinal.Empty, new IonOrdinal(IonType.b, 2) }, null);
+            AssertEx.IsTrue(b4_b2.IsAllowed(peptideStructure));
+            AssertEx.IsTrue(b4_b2.IsConnected(peptideStructure));
+            var b2b2_= new NeutralFragmentIon(new[] { new IonOrdinal(IonType.b, 2), new IonOrdinal(IonType.b, 2), IonOrdinal.Empty},
+                null);
+            AssertEx.IsTrue(b2b2_.IsAllowed(peptideStructure));
+            AssertEx.IsFalse(b2b2_.IsConnected(peptideStructure));
+            var _y2y4 = new NeutralFragmentIon(
+                new[] { IonOrdinal.Empty, new IonOrdinal(IonType.y, 2), new IonOrdinal(IonType.y, 4) }, null);
+            AssertEx.IsTrue(_y2y4.IsAllowed(peptideStructure));
+            AssertEx.IsTrue(_y2y4.IsConnected(peptideStructure));
+            var b2y2y4 = new NeutralFragmentIon(new[] { new IonOrdinal(IonType.b, 2), new IonOrdinal(IonType.y, 2), 
+                new IonOrdinal(IonType.y, 4) }, null);
+            AssertEx.IsTrue(b2y2y4.IsAllowed(peptideStructure));
+            AssertEx.IsFalse(b2y2y4.IsConnected(peptideStructure));
+            var b4y2p = new NeutralFragmentIon(
+                new[] { new IonOrdinal(IonType.b, 4), new IonOrdinal(IonType.y, 2), IonOrdinal.Precursor }, null);
+            AssertEx.IsTrue(b4y2p.IsAllowed(peptideStructure));
+            AssertEx.IsTrue(b4y2p.IsConnected(peptideStructure));
+        }
+
+        [TestMethod]
+        public void TestCleavableCrosslinkMod()
+        {
+            var mainPeptide = new Peptide("CASIQKFGER");
+            var linkedPeptide = new Peptide("LAKEYEATLEECCAK");
+            var crosslinkMod = new StaticMod("DSBU", "K,S,T,Y", null, "C9O3N2H12")
+                .ChangeLosses(new[] { new FragmentLoss("C4ONH7"), new FragmentLoss("C5O2NH5") });
+            var minus85Loss = crosslinkMod.Losses[0];
+            Assert.AreEqual(85.0, minus85Loss.MonoisotopicMass, 1);
+            var carbamidomethylMod = UniMod.GetModification("Carbamidomethyl (C)", true);
+            Assert.IsNotNull(carbamidomethylMod);
+
+            var explicitMods = new ExplicitMods(mainPeptide, new[] { new ExplicitMod(0, carbamidomethylMod) }, Array.Empty<TypedExplicitModifications>())
+                .ChangeCrosslinkStructure(new CrosslinkStructure(new[] { linkedPeptide }, new[]
+                {
+                    new ExplicitMods(linkedPeptide, new[]
+                    {
+                        new ExplicitMod(11, carbamidomethylMod),
+                        new ExplicitMod(12, carbamidomethylMod)
+                    }, Array.Empty<TypedExplicitModifications>())
+                }, new[]
+                {
+                    new Crosslink(crosslinkMod, new[] { new CrosslinkSite(0, 5), new CrosslinkSite(1, 2) })
+                }));
+            var srmSettings = SrmSettingsList.GetDefault();
+            srmSettings = srmSettings.ChangePeptideSettings(
+                srmSettings.PeptideSettings.ChangeModifications(
+                    srmSettings.PeptideSettings.Modifications.ChangeStaticModifications(new[]
+                    {
+                        carbamidomethylMod,
+                        crosslinkMod
+                    })));
+            var transitionGroup = new TransitionGroup(mainPeptide, Adduct.TRIPLY_PROTONATED, IsotopeLabelType.light);
+            var transitionGroupDocNode = new TransitionGroupDocNode(transitionGroup, Annotations.EMPTY, srmSettings,
+                explicitMods, null, null, null, Array.Empty<TransitionDocNode>(), false);
+            var transitionDocNodes = transitionGroupDocNode.GetTransitions(srmSettings, explicitMods,
+                transitionGroupDocNode.PrecursorMz, transitionGroupDocNode.IsotopeDist, null,
+                new Dictionary<double, LibraryRankedSpectrumInfo.RankedMI>(), false).ToList();
+            IonChain ionChangeLeftPrecursor = new IonChain(new[] { IonOrdinal.Precursor, IonOrdinal.Empty });
+            TransitionDocNode transitionCrosslinkPMinus85 = transitionDocNodes.SingleOrDefault(
+                node=>Equals(ionChangeLeftPrecursor, node.ComplexFragmentIon.NeutralFragmentIon.IonChain) && 
+                      Equals(Adduct.SINGLY_PROTONATED, node.Transition.Adduct) && 
+                      Equals(minus85Loss.MonoisotopicMass, node.Losses.Mass));
+            Assert.IsNotNull(transitionCrosslinkPMinus85);
+            var modXlinkMinus = new StaticMod("Minus85", "K,S,T,Y", null, "C5O2NH5");
+            var explicitModsXlinkMinus85 = new ExplicitMods(mainPeptide,
+                new[] { new ExplicitMod(0, carbamidomethylMod), new ExplicitMod(5, modXlinkMinus) },
+                Array.Empty<TypedExplicitModifications>());
+            var transitionGroupDocNodeMinus85 = new TransitionGroupDocNode(
+                new TransitionGroup(mainPeptide, Adduct.SINGLY_PROTONATED, IsotopeLabelType.light), Annotations.EMPTY,
+                srmSettings, explicitModsXlinkMinus85, null, null, null, Array.Empty<TransitionDocNode>(), false);
+            var precursorMinus85 = transitionGroupDocNodeMinus85.GetTransitions(srmSettings, explicitModsXlinkMinus85,
+                    transitionGroupDocNodeMinus85.PrecursorMz, transitionGroupDocNodeMinus85.IsotopeDist, null, null,
+                    false)
+                .SingleOrDefault(node =>
+                    Equals(IonType.precursor, node.Transition.IonType) && Equals(0, node.Transition.MassIndex));
+            Assert.IsNotNull(precursorMinus85);
+            Assert.AreEqual(transitionCrosslinkPMinus85.Mz, precursorMinus85.Mz, .0001);
+
+            var modPlus100 = new StaticMod("Plus100", null, null, null, LabelAtoms.None, 100, 100);
+            var explicitModsPlus100 = explicitMods.ChangeStaticModifications(explicitMods.StaticModifications
+                .Append(new ExplicitMod(0, modPlus100)).ToList());
+            var transitionGroupDocNodePlus100 = new TransitionGroupDocNode(transitionGroup, Annotations.EMPTY,
+                srmSettings,
+                explicitModsPlus100, null, null, null, Array.Empty<TransitionDocNode>(), false);
+            Assert.AreEqual(transitionGroupDocNode.PrecursorMz + 100 / 3.0, transitionGroupDocNodePlus100.PrecursorMz, .00001);
+        }
+
+        [TestMethod]
+        public void TestCrosslinkWithHeavyLabeledAtoms()
+        {
+            var mainPeptide = new Peptide("ADVNVLTK");
+            var linkedPeptide = new Peptide("ADKADVNVLTKAKSQ");
+            var crosslinker =
+                new StaticMod("DSBU (XL)", "K, S, T, Y", null, "C9O3N2H12").ChangeCrosslinkerSettings(
+                    CrosslinkerSettings.EMPTY);
+            var heavyMod = UniMod.GetModification("Label:13C(6)15N(2) (C-term K)", false);
+            var settings = SrmSettingsList.GetDefault();
+            var peptideModifications = settings.PeptideSettings.Modifications;
+            peptideModifications =
+                peptideModifications.ChangeStaticModifications(peptideModifications.StaticModifications
+                    .Append(crosslinker).ToList());
+            peptideModifications = peptideModifications.ChangeModifications(IsotopeLabelType.heavy, new[] { heavyMod });
+            settings = settings.ChangePeptideSettings(settings.PeptideSettings.ChangeModifications(peptideModifications));
+            settings = settings.ChangeTransitionSettings(settings.TransitionSettings.ChangeFullScan(
+                    settings.TransitionSettings.FullScan.ChangePrecursorIsotopes(FullScanPrecursorIsotopes.Count, 3,
+                        IsotopeEnrichmentsList.GetDefault()))
+                .ChangeFilter(settings.TransitionSettings.Filter.ChangePeptideIonTypes(new[] { IonType.precursor })));
+            var explicitMods =
+                new ExplicitMods(mainPeptide, ImmutableList.Empty<ExplicitMod>(),
+                    new[]
+                    {
+                        new TypedExplicitModifications(mainPeptide, IsotopeLabelType.heavy,
+                            new[] { new ExplicitMod(7, heavyMod) })
+                    }).ChangeCrosslinkStructure(new CrosslinkStructure(new[] { linkedPeptide }, new[]
+                {
+                    new Crosslink(crosslinker, new[] { new CrosslinkSite(0, 0), new CrosslinkSite(1, 2) })
+                }));
+            var transitionGroup = new TransitionGroup(mainPeptide, Adduct.DOUBLY_PROTONATED, IsotopeLabelType.heavy);
+            var transitionGroupDocNode = new TransitionGroupDocNode(transitionGroup, Annotations.EMPTY, settings,
+                explicitMods, null, null, null, Array.Empty<TransitionDocNode>(), false);
+            var allTransitions = transitionGroupDocNode.GetPrecursorChoices(settings, explicitMods, true).Cast<TransitionDocNode>().ToList();
+            var precursorTransitions = allTransitions.Where(transition => transition.IsMs1).ToList();
+            Assert.AreEqual(3, precursorTransitions.Count);
+            var monoPrecursorTransition = precursorTransitions[0];
+            Assert.AreEqual(0, monoPrecursorTransition.Transition.MassIndex);
+
+            // Make a different transition with a mass-only modification which is exactly 3 Daltons
+            var explicitModsWith4DaMod = explicitMods.ChangeHeavyModifications(new[]
+            {
+                new ExplicitMod(7, new StaticMod("MassOnly", "K", null, null, LabelAtoms.None, 3, 3.5))
+            });
+            var transitionGroupDocNodeWith4DaMod = new TransitionGroupDocNode(transitionGroup, Annotations.EMPTY,
+                settings, explicitModsWith4DaMod,
+                null, null, null, Array.Empty<TransitionDocNode>(), false);
+            var allTransitionsWith4DaMod =
+                transitionGroupDocNodeWith4DaMod.GetPrecursorChoices(settings, explicitModsWith4DaMod, true)
+                    .Cast<TransitionDocNode>().ToList();
+            var precursorTransitionsWith4DaMod = allTransitionsWith4DaMod.Where(transition => transition.IsMs1).ToList();
+            Assert.AreEqual(3, precursorTransitionsWith4DaMod.Count);
+            var monoTransitionWith4DaMod = precursorTransitionsWith4DaMod[0];
+            Assert.AreEqual(0, monoTransitionWith4DaMod.Transition.MassIndex);
+
+            Assert.AreEqual(2, monoPrecursorTransition.Transition.Charge);
+            // The 3 Dalton modification is 5 Daltons less than the heavy modification, so the charge 2 m/z should be 2.5 less
+            Assert.AreEqual(monoPrecursorTransition.Mz - 2.5, monoTransitionWith4DaMod.Mz, .01);
         }
     }
 }

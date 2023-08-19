@@ -25,11 +25,14 @@ using pwiz.Common.DataAnalysis;
 using pwiz.Common.DataBinding;
 using pwiz.Common.DataBinding.Attributes;
 using pwiz.Common.DataBinding.Controls;
+using pwiz.Skyline.Controls.Databinding;
 using pwiz.Skyline.Model;
 using pwiz.Skyline.Model.Databinding;
+using pwiz.Skyline.Model.Databinding.Collections;
 using pwiz.Skyline.Model.Databinding.Entities;
 using pwiz.Skyline.Model.GroupComparison;
 using pwiz.Skyline.Model.Hibernate;
+using pwiz.Skyline.Util.Extensions;
 
 namespace pwiz.Skyline.Controls.GroupComparison
 {
@@ -40,6 +43,7 @@ namespace pwiz.Skyline.Controls.GroupComparison
         private EventTaskScheduler _taskScheduler;
         private BindingListSource _bindingListSource;
         private SkylineDataSchema _skylineDataSchema;
+        private int _updatingCount;
         public const string CLUSTERED_VIEW_NAME = "Clustered";
 
 
@@ -57,8 +61,7 @@ namespace pwiz.Skyline.Controls.GroupComparison
         {
             if (Interlocked.Increment(ref _referenceCount) == 1)
             {
-                _skylineDataSchema = new SkylineDataSchema(GroupComparisonModel.DocumentContainer,
-                    SkylineDataSchema.GetLocalizedSchemaLocalizer());
+                _skylineDataSchema = SkylineWindowDataSchema.FromDocumentContainer(GroupComparisonModel.DocumentContainer);
                 var rowSourceInfos = CreateRowSourceInfos(new FoldChangeRow[0], new FoldChangeDetailRow[0]);
                 ViewContext = new GroupComparisonViewContext(_skylineDataSchema, rowSourceInfos);
                 _container = new Container();
@@ -73,6 +76,7 @@ namespace pwiz.Skyline.Controls.GroupComparison
         {
             if (null != _bindingListSource && 0 < _referenceCount)
             {
+                Interlocked.Increment(ref _updatingCount);
                 _taskScheduler.Run(() =>
                 {
                     try
@@ -86,6 +90,7 @@ namespace pwiz.Skyline.Controls.GroupComparison
                     {
                         Program.ReportException(e);
                     }
+                    Interlocked.Decrement(ref _updatingCount);
                 });
             }
         }
@@ -160,9 +165,9 @@ namespace pwiz.Skyline.Controls.GroupComparison
 
             var rowSourceInfos = new List<RowSourceInfo>()
             {
-                new RowSourceInfo(new StaticRowSource(foldChangeRows),
+                new RowSourceInfo(new FixedSkylineObjectList<FoldChangeRow>(_skylineDataSchema, foldChangeRows),
                     new ViewInfo(_skylineDataSchema, typeof(FoldChangeRow), defaultViewSpec).ChangeViewGroup(ViewGroup.BUILT_IN)),
-                new RowSourceInfo(new StaticRowSource(detailRows),
+                new RowSourceInfo(new FixedSkylineObjectList<FoldChangeDetailRow>(_skylineDataSchema, detailRows),
                     new ViewInfo(_skylineDataSchema, typeof(FoldChangeDetailRow), clusteredViewSpec).ChangeViewGroup(ViewGroup.BUILT_IN))
             };
             return rowSourceInfos;
@@ -291,6 +296,23 @@ namespace pwiz.Skyline.Controls.GroupComparison
             }
         }
 
+        public bool IsComplete
+        {
+            get
+            {
+                if (_updatingCount > 0)
+                {
+                    return false;
+                }
+                if (GroupComparisonModel.PercentComplete < 100)
+                {
+                    return false;
+                }
+
+                return _skylineDataSchema.IsDocumentUpToDate();
+            }
+        }
+
         public BindingListSource GetBindingListSource()
         {
             if (_referenceCount <= 0)
@@ -383,6 +405,17 @@ namespace pwiz.Skyline.Controls.GroupComparison
             Replicate IReplicateValue.GetReplicate()
             {
                 return Replicate;
+            }
+
+            public override string ToString()
+            {
+                var parts = new List<string> {Replicate.ToString()};
+                if (Abundance.HasValue)
+                {
+                    parts.Add(Abundance.Value.ToString(Formats.CalibrationCurve));
+                }
+
+                return TextUtil.SpaceSeparate(parts);
             }
         }
     }

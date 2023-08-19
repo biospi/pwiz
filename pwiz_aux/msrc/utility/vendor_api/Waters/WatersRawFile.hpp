@@ -36,17 +36,22 @@
 #include <iostream>
 #include <fstream>
 
+#pragma warning (push)
+#pragma warning (disable: 4189)
 //#include "MassLynxRawDataFile.h"
 #include "MassLynxRawBase.hpp"
 #include "MassLynxRawScanReader.hpp"
 #include "MassLynxRawChromatogramReader.hpp"
 #include "MassLynxRawInfoReader.hpp"
 //#include "MassLynxRawScanStatsReader.h"
+#include <boost/range/algorithm/find_if.hpp>
 #include "MassLynxLockMassProcessor.hpp"
 #include "MassLynxRawProcessor.hpp"
 #include "MassLynxParameters.hpp"
+#include "MassLynxScanProcessor.hpp"
 //#include "cdtdefs.h"
 //#include "compresseddatacluster.h"
+#pragma warning (pop)
 
 namespace pwiz {
 namespace vendor_api {
@@ -106,6 +111,7 @@ struct PWIZ_API_DECL RawData
     const vector<int>& FunctionIndexList() const {return functionIndexList;}
     const vector<bool>& IonMobilityByFunctionIndex() const {return ionMobilityByFunctionIndex;}
     const vector<bool>& SonarEnabledByFunctionIndex() const {return sonarEnabledByFunctionIndex;}
+    const set<int>& FunctionsWithChromFiles() const { return functionsWithChromFiles; } // For detecting lockmass function
 
     bool HasIonMobility() {return hasIonMobility_;}
     bool HasSONAR() {return hasSONAR_;}
@@ -135,13 +141,24 @@ struct PWIZ_API_DECL RawData
         // For functions over 100, the names become _FUNC0100.DAT
         // Keep track of the maximum function number
         string functionPathmask = rawpath + "/_FUNC*.DAT";
+        string chromatogramPathmask = rawpath + "/_CHRO*.DAT";
         vector<bfs::path> functionFilepaths;
+        vector<bfs::path> chromatogramFilepaths;
         expand_pathmask(functionPathmask, functionFilepaths);
+        expand_pathmask(chromatogramPathmask, chromatogramFilepaths);
         map<int, bfs::path> functionFilepathByNumber;
         for (size_t i=0; i < functionFilepaths.size(); ++i)
         {
             string fileName = BFS_STRING(functionFilepaths[i].filename());
             size_t number = lexical_cast<size_t>(bal::trim_left_copy_if(fileName.substr(5, fileName.length() - 9), bal::is_any_of("0")));
+            // Note whether or not there's a corresponding CHRO file - used in determining lockmass function
+            string chromatogramFileName = fileName;
+            boost::algorithm::replace_all(chromatogramFileName, "_FUNC", "_CHRO");
+            if (boost::range::find_if(chromatogramFilepaths, 
+                [chromatogramFileName](const bfs::path& cfp) { return BFS_STRING(cfp.filename()) == chromatogramFileName; }) != chromatogramFilepaths.end())
+            {
+                functionsWithChromFiles.insert(number - 1); // 0 based
+            }
             functionIndexList.push_back(number-1); // 0-based
             functionFilepathByNumber[number-1] = functionFilepaths[i];
             numSpectra_ += Info.GetScansInFunction(number-1);
@@ -330,38 +347,6 @@ struct PWIZ_API_DECL RawData
         return findItr->second;
     }
 
-    void Centroid() const
-    {
-        if (!hasProfile_)
-        {
-            centroidRaw_.reset(const_cast<RawData*>(this), boost::null_deleter());
-            return;
-        }
-
-        string centroidPath = rawpath_ + "\\centroid.raw";
-        if (!bfs::exists(centroidPath))
-            PeakPicker.Centroid(centroidPath);
-
-        if (!centroidRaw_)
-        {
-            try
-            {
-                centroidRaw_.reset(new RawData(centroidPath));
-            }
-            catch (MassLynxRawException&)
-            {
-                bfs::remove_all(centroidPath);
-                PeakPicker.Centroid(centroidPath);
-                centroidRaw_.reset(new RawData(centroidPath));
-            }
-        }
-    }
-
-    boost::shared_ptr<RawData> CentroidRawDataFile() const
-    {
-        return centroidRaw_;
-    }
-
     bool LockMassCanBeApplied() const
     {
         return Info.CanLockMassCorrect();
@@ -412,10 +397,70 @@ struct PWIZ_API_DECL RawData
         }
     }
 
+    void EnableProcessing(bool bEnableDDAProcessing)
+    {
+        ScanProcessor.SetRawData(Reader);
+        if (bEnableDDAProcessing)
+            DDAProcessor.SetRawData(Reader);      
+    }
+
+    unsigned int GetDDAScanCount()
+    {
+        return DDAProcessor.GetScanCount();
+    }
+
+    bool GetDDAScan(const int& nWhichIndex, float& RT, int& function, int& startScan, int& endScan, bool& isMS1, float& setMass, float& precursorMass, vector<float>& masses, vector<float>& intensities)
+    {
+        MassLynxParameters parameters;
+        bool success = DDAProcessor.GetScan(nWhichIndex, masses, intensities, parameters);
+
+        if (success)
+        {
+            RT = lexical_cast<float>(parameters.Get(MassLynxDDAIndexDetail::RT));
+            function = lexical_cast<int>(parameters.Get(MassLynxDDAIndexDetail::FUNCTION));
+            startScan = lexical_cast<int>(parameters.Get(MassLynxDDAIndexDetail::START_SCAN));
+            endScan = lexical_cast<int>(parameters.Get(MassLynxDDAIndexDetail::END_SCAN));
+            isMS1 = lexical_cast<int>(parameters.Get(MassLynxDDAIndexDetail::SCAN_TYPE)) == (int)MassLynxScanType::MS1;
+
+            if (!isMS1)
+            {
+                setMass = lexical_cast<float>(parameters.Get(MassLynxDDAIndexDetail::SET_MASS));
+                precursorMass = lexical_cast<float>(parameters.Get(MassLynxDDAIndexDetail::PRECURSOR_MASS));
+            }
+        }
+        return success;
+    }
+
+    bool GetIsolationWindow(float& lowerOffset, float& upperOffset)
+    {
+        MassLynxParameters parameters = DDAProcessor.GetParameters();
+        float lowerOffsetParam = lexical_cast<float>(parameters.Get(DDAParameter::LOWEROFFSET));
+        float upperOffsetParam = lexical_cast<float>(parameters.Get(DDAParameter::UPPEROFFSET));
+
+        if (lowerOffsetParam == 0 && upperOffsetParam == 0)
+            return false;
+
+        lowerOffset = lowerOffsetParam;
+        upperOffset = upperOffsetParam;
+
+        return true;
+    }
+
+    void ReadScan(int function, int scan, bool doCentroid, vector<float>& masses, vector<float>& intensities)
+    {
+        ScanProcessor.Load(function, scan);
+
+        if (doCentroid)
+            ScanProcessor.Centroid();
+
+        ScanProcessor.GetScan(masses, intensities);
+    }
+
     private:
     MassLynxLockMassProcessor LockMass;
+    MassLynxDDAProcessor DDAProcessor;
+    MassLynxScanProcessor ScanProcessor;
     mutable MassLynxRawProcessorWithProgress PeakPicker;
-    mutable boost::shared_ptr<RawData> centroidRaw_;
     mutable int workingDriftTimeFunctionIndex_;
     mutable int workingSonarFunctionIndex_; // We're assuming that the Sonar calibration is the same across all functions
     mutable float sonarMassLowerLimit_, sonarMassUpperLimit_;  // We're assuming that the Sonar calibration is the same across all functions
@@ -428,6 +473,7 @@ struct PWIZ_API_DECL RawData
     vector<vector<float>> timesByFunctionIndex;
     vector<vector<float>> ticByFunctionIndex;
     map<string, string> headerProps;
+    set<int> functionsWithChromFiles; // Used to puzzle out which MS function is lockmass data
     int numSpectra_; // not separated by ion mobility
     bool hasProfile_; // can only centroid if at least one function is profile mode
     bool hasIonMobility_;

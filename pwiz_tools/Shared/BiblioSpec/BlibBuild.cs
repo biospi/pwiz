@@ -76,7 +76,7 @@ namespace pwiz.BiblioSpec
         }
     }
 
-    public class BiblioSpecScoreType
+    public class ScoreType
     {
         private const string PERCOLATOR_QVALUE = "PERCOLATOR QVALUE";
         private const string PEPTIDE_PROPHET_SOMETHING = "PEPTIDE PROPHET SOMETHING";
@@ -106,9 +106,9 @@ namespace pwiz.BiblioSpec
         public string NameInvariant { get; }
         public EnumProbabilityType ProbabilityType { get; }
 
-        public static BiblioSpecScoreType GenericQValue => new BiblioSpecScoreType(GENERIC_QVALUE, PROBABILITY_INCORRECT);
+        public static ScoreType GenericQValue => new ScoreType(GENERIC_QVALUE, PROBABILITY_INCORRECT);
 
-        public BiblioSpecScoreType(string name, string probabilityType)
+        public ScoreType(string name, string probabilityType)
         {
             NameInvariant = name;
             switch (probabilityType)
@@ -174,7 +174,9 @@ namespace pwiz.BiblioSpec
                     case IDPICKER_FDR:
                         return new RangeValues(0, 0);
                     case WATERS_MSE_PEPTIDE_SCORE:
-                        return new RangeValues(6, 6);
+                        // "peptide.score" values in "final_fragment.csv" files seem to 
+                        // always be less than 10.
+                        return new RangeValues(0, 10);
                     default:
                         return new RangeValues(0, 1);
                 }
@@ -193,6 +195,22 @@ namespace pwiz.BiblioSpec
                         return new RangeValues(0.0, 0.3);
                     default:
                         return new RangeValues(null, null);
+                }
+            }
+        }
+
+        public string ThresholdDescription
+        {
+            get
+            {
+                switch (ProbabilityType)
+                {
+                    case EnumProbabilityType.probability_correct:
+                        return Resources.ScoreType_ScoreThresholdDescription_Score_threshold_minimum__score_is_probability_that_identification_is_correct_;
+                    case EnumProbabilityType.probability_incorrect:
+                        return Resources.ScoreType_ScoreThresholdDescription_Score_threshold_maximum__score_is_probability_that_identification_is_incorrect_;
+                    default:
+                        return null;
                 }
             }
         }
@@ -243,7 +261,7 @@ namespace pwiz.BiblioSpec
             }
         }
 
-        public bool Equals(BiblioSpecScoreType obj)
+        public bool Equals(ScoreType obj)
         {
             if (ReferenceEquals(null, obj)) return false;
             if (ReferenceEquals(this, obj)) return true;
@@ -254,7 +272,7 @@ namespace pwiz.BiblioSpec
         {
             if (ReferenceEquals(null, obj)) return false;
             if (ReferenceEquals(this, obj)) return true;
-            return obj.GetType() == typeof(BiblioSpecScoreType) && Equals((BiblioSpecScoreType)obj);
+            return obj.GetType() == typeof(ScoreType) && Equals((ScoreType)obj);
         }
 
         public override int GetHashCode()
@@ -265,6 +283,21 @@ namespace pwiz.BiblioSpec
                 result = (result * 397) ^ ProbabilityType.GetHashCode();
                 return result;
             }
+        }
+    }
+
+    public class ScoreTypesResult
+    {
+        public ScoreType[] ScoreTypes { get; }
+        public int NumScoreTypes => ScoreTypes?.Length ?? 0;
+
+        public string[] Errors { get; }
+        public bool HasError => Errors?.Length > 0;
+
+        public ScoreTypesResult(IEnumerable<ScoreType> scoreTypes, IEnumerable<string> errors)
+        {
+            ScoreTypes = scoreTypes.ToArray();
+            Errors = errors.ToArray();
         }
     }
 
@@ -311,11 +344,14 @@ namespace pwiz.BiblioSpec
             // Arguments for BlibBuild
             // ReSharper disable LocalizableElement
             List<string> argv = new List<string> { "-s", "-A", "-H" };  // Read from stdin, get ambiguous match messages, high precision modifications
+
+            argv.Add("-v");
+            // Verbose for debugging
             if (DebugMode)
-            {
-                argv.Add("-v"); // Verbose for debugging
                 argv.Add("debug");
-            }
+            else
+                argv.Add("warn");
+
             if (libraryBuildAction == LibraryBuildAction.Create)
                 argv.Add("-o");
             if (CutOffScore.HasValue)
@@ -348,7 +384,7 @@ namespace pwiz.BiblioSpec
             }
             string dirCommon = PathEx.GetCommonRoot(InputFiles);
 
-            string stdinFilename = Path.GetTempFileName();
+            string stdinFilename = Path.Combine(Path.GetDirectoryName(OutputPath) ?? string.Empty, Path.GetFileNameWithoutExtension(OutputPath) + $"{DateTime.Now.ToString("yyyyMMddhhmm")}.stdin.txt");
             argv.Add($"-S \"{stdinFilename}\"");
             using (var stdinFile = new StreamWriter(stdinFilename, false, new UTF8Encoding(false)))
             {
@@ -412,19 +448,26 @@ namespace pwiz.BiblioSpec
                 // Keep a copy of what got sent to BlibBuild for debugging purposes
                 commandArgs = psiBlibBuilder.Arguments + Environment.NewLine + string.Join(Environment.NewLine, File.ReadAllLines(stdinFilename));
 
-                File.Delete(stdinFilename);
                 if (!isComplete)
                 {
                     // If something happened (error or cancel) to end processing, then
                     // get rid of the possibly partial library.
-                    File.Delete(OutputPath);
-                    File.Delete(OutputPath + EXT_SQLITE_JOURNAL);
+                    if (OutputPath != null)
+                    {
+                        File.Delete(OutputPath);
+                        File.Delete(OutputPath + EXT_SQLITE_JOURNAL);
+                    }
+                }
+                else
+                {
+                    // keep the stdin file if an error occurred
+                    File.Delete(stdinFilename);
                 }
             }
             return isComplete;
         }
 
-        public bool GetScoreTypes(IProgressMonitor progressMonitor, ref IProgressStatus status, out string commandArgs, out string messageLog, out Dictionary<string, BiblioSpecScoreType[]> scoreTypes)
+        public Dictionary<string, ScoreTypesResult> GetScoreTypes(IProgressMonitor progressMonitor, ref IProgressStatus status, out string commandArgs)
         {
             // Arguments for BlibBuild
             // ReSharper disable LocalizableElement
@@ -460,36 +503,11 @@ namespace pwiz.BiblioSpec
                 StandardErrorEncoding = Encoding.UTF8
             };
 
-            bool isComplete;
-            scoreTypes = new Dictionary<string, BiblioSpecScoreType[]>();
-            messageLog = string.Empty;
+            var text = new StringWriter();
             try
             {
-                const string scoreTypePrefix = @"SCORETYPE" + "\t";
-                var processRunner = new ProcessRunner { MessagePrefix = DebugMode ? string.Empty : scoreTypePrefix };
-                processRunner.Run(psiBlibBuilder, null, progressMonitor, ref status);
-                isComplete = status.IsComplete;
-                if (isComplete)
-                {
-                    var messages = processRunner.MessageLog();
-                    messageLog = string.Join(Environment.NewLine, processRunner.MessageLog());
-                    if (DebugMode)
-                    {
-                        messages = messages.Where(l => l.StartsWith(scoreTypePrefix)).Select(l => l.Substring(scoreTypePrefix.Length));
-                    }
-                    foreach (var message in messages)
-                    {
-                        var pieces = message.Split('\t');
-                        if (pieces.Length < 3)
-                            continue;
-                        var file = string.Join(@"\t", pieces.Take(pieces.Length - 2).ToArray());
-                        var scoreType = pieces[pieces.Length - 2];
-                        var probType = pieces[pieces.Length - 1];
-                        scoreTypes[file] = !scoreTypes.TryGetValue(file, out var existing)
-                            ? new[] { new BiblioSpecScoreType(scoreType, probType) }
-                            : existing.Append(new BiblioSpecScoreType(scoreType, probType)).ToArray();
-                    }
-                }
+                var processRunner = new ProcessRunner();
+                processRunner.Run(psiBlibBuilder, null, progressMonitor, ref status, text);
             }
             finally
             {
@@ -497,7 +515,50 @@ namespace pwiz.BiblioSpec
                 commandArgs = psiBlibBuilder.Arguments + Environment.NewLine + string.Join(Environment.NewLine, File.ReadAllLines(stdinFilename));
                 File.Delete(stdinFilename);
             }
-            return isComplete;
+
+            if (!status.IsComplete)
+                return null;
+
+            var result = new Dictionary<string, ScoreTypesResult>();
+            using (var reader = new StringReader(text.ToString()))
+            {
+                const string errorPrefix = @"ERROR:";
+
+                string curFile = null;
+                var curScoreTypes = new List<ScoreType>();
+                var curErrors = new List<string>();
+                string line;
+                while ((line = reader.ReadLine()) != null)
+                {
+                    if (string.IsNullOrEmpty(line))
+                    {
+                        if (curFile != null)
+                            result[curFile] = new ScoreTypesResult(curScoreTypes, curErrors);
+
+                        curFile = null;
+                        curScoreTypes.Clear();
+                        curErrors.Clear();
+                    }
+                    else if (curFile == null)
+                    {
+                        curFile = line;
+                    }
+                    else if (!line.StartsWith(errorPrefix))
+                    {
+                        var pieces = line.Split(new[] { '\t' }, 2);
+                        if (pieces.Length == 2)
+                            curScoreTypes.Add(new ScoreType(pieces[0], pieces[1]));
+                    }
+                    else
+                    {
+                        curErrors.Add(line.Substring(errorPrefix.Length).Trim());
+                    }
+                }
+
+                if (curFile != null)
+                    result[curFile] = new ScoreTypesResult(curScoreTypes, curErrors);
+            }
+            return result;
         }
     }
 }

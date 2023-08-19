@@ -87,6 +87,21 @@ struct LocaleBool {
     }
 };
 
+inline size_t findNextTokenIndex(string &args, size_t currentTokenIndex)
+{
+    // Watch out for spaces bound by quotes - don't split on those
+    size_t endQuoteIndex = string::npos;
+    if (args[currentTokenIndex] == '\'')
+    {
+        endQuoteIndex = args.find('\'', currentTokenIndex + 1);
+    }
+    else if (args[currentTokenIndex] == '\"')
+    {
+        endQuoteIndex = args.find('\"', currentTokenIndex + 1);
+    }
+    return args.find(' ', (endQuoteIndex == string::npos) ? currentTokenIndex : endQuoteIndex);
+}
+
 /// parses a lexical-castable key=value pair from a string of arguments which may also include non-key-value strings;
 /// if the key is not in the argument string, defaultValue is returned;
 /// if bad_lexical_cast is thrown, it is converted into a sensible error message
@@ -102,21 +117,26 @@ ArgT parseKeyValuePair(string& args, const string& tokenName, const ArgT& defaul
             if (valueIndex < args.length())
             {
                 string valueStr;
-                size_t nextTokenIndex = args.find(" ", valueIndex);
+                size_t nextTokenIndex = findNextTokenIndex(args, valueIndex);
                 for (int i = tokensInValue; i >= 0; --i)
                 {
                     try
                     {
                         valueStr = args.substr(valueIndex, nextTokenIndex - valueIndex);
+                        if ((valueStr[0] == '\'' || valueStr[0] == '\"') && valueStr[0] == valueStr[valueStr.length()-1])
+                        {
+                            // Strip quotes if any
+                            valueStr = valueStr.substr(1, valueStr.length() - 2);
+                        }
                         ArgT value = lexical_cast<ArgT>(valueStr);
                         args.erase(keyIndex, nextTokenIndex - keyIndex);
                         return value;
                     }
                     catch (exception&)
                     {
-                        nextTokenIndex = args.find(" ", nextTokenIndex+1);
+                        nextTokenIndex = findNextTokenIndex(args, nextTokenIndex+1);
                         if (i > 0)
-                            continue;
+                            continue; // Perhaps cast didn't succeed because value has multiple tokens in it
                         throw runtime_error("error parsing \"" + valueStr + "\" as value for \"" + tokenName + "\"; expected " + cppTypeToNaturalLanguage(defaultValue));
                     }
                 }
@@ -668,6 +688,20 @@ UsageInfo usage_precursorRecalculation = {"","This filter recalculates the precu
     "although it does not use any 3rd party (vendor DLL) code.  Since the time the code was written, Thermo has since fixed "
     "up its own estimation in response, so it's less critical than it used to be (though can still be useful)."};
 
+/**
+ * \brief
+ * For use with nested quotes on commandlines e.g. // e.g. commandline --filter "params=\"my ^^parameters file\""
+ * \param path 
+ */
+inline void unescapeQuotedPath(string &path)
+{
+    if ((bal::starts_with(path, "\'") && bal::ends_with(path, "\'")) || (bal::starts_with(path, "\"") && bal::ends_with(path, "\"")))
+    {
+        // Remove the first and last characters
+        path = path.substr(1, path.length() - 2);
+    }
+}
+
 SpectrumListPtr filterCreator_mzRefine(const MSData& msd, const string& arg, pwiz::util::IterationListenerRegistry* ilr)
 {
     // Example string:
@@ -691,11 +725,7 @@ SpectrumListPtr filterCreator_mzRefine(const MSData& msd, const string& arg, pwi
         {
             // Add to ident file list, and check for existence?
             // Remove quotes that may be used to encapsulate a path with spaces
-            if ((bal::starts_with(nextStr, "\'") && bal::ends_with(nextStr, "\'")) || (bal::starts_with(nextStr, "\"") && bal::ends_with(nextStr, "\"")))
-            {
-                // Remove the first and last characters
-                nextStr = nextStr.substr(1, nextStr.length() - 2);
-            }
+            unescapeQuotedPath(nextStr);
             // expand the filenames by globbing to handle wildcards
             if (expand_pathmask(bfs::path(nextStr), globbedFilenames) == 0)
                 cout << "[mzRefiner] no files found matching \"" << nextStr << "\"" << endl;
@@ -821,6 +851,7 @@ SpectrumListPtr filterCreator_demux(const MSData& msd, const string& carg, pwiz:
     string optimization = parseKeyValuePair<string>(arg, "optimization=", "none");
     demuxParams.interpolateRetentionTime = parseKeyValuePair<LocaleBool>(arg, "interpolateRT=", k_defaultDemuxParams.interpolateRetentionTime);
     demuxParams.minimumWindowSize = parseKeyValuePair<double>(arg, "minWindowSize=", k_defaultDemuxParams.minimumWindowSize);
+    demuxParams.removeNonOverlappingEdges = parseKeyValuePair<LocaleBool>(arg, "removeNonOverlappingEdges=", k_defaultDemuxParams.removeNonOverlappingEdges);
     bal::trim(arg);
     if (!arg.empty())
         throw runtime_error("[demultiplex] unhandled text remaining in argument string: \"" + arg + "\"");
@@ -845,7 +876,8 @@ UsageInfo usage_demux = {
     " noSumNormalize=<bool (false)>"
     " optimization=<(none)|overlap_only>"
     " interpolateRT=<bool (true)>"
-    " minWindowSize=<real (0.2)>",
+    " minWindowSize=<real (0.2)>"
+    " removeNonOverlappingEdges=<bool (false)>",
     "Separates overlapping or MSX multiplexed spectra into several demultiplexed spectra by inferring from adjacent multiplexed spectra. Optionally handles variable fill times (for Thermo)." };
 
 SpectrumListPtr filterCreator_diaUmpire(const MSData& msd, const string& carg, pwiz::util::IterationListenerRegistry* ilr)
@@ -853,8 +885,12 @@ SpectrumListPtr filterCreator_diaUmpire(const MSData& msd, const string& carg, p
     string arg = carg;
 
     string paramsFilepath = parseKeyValuePair<string>(arg, "params=", "");
+    unescapeQuotedPath(paramsFilepath); // e.g. commandline --filter "params=\"my parameters file\""
+
     if (!bfs::exists(paramsFilepath))
-        throw user_error("[diaUmpire] params filepath is required (params=path/to/diaumpire.params)");
+        throw user_error(paramsFilepath.empty() ?
+            "[diaUmpire] params filepath is required (params=path/to/diaumpire.params)":
+            "[diaUmpire] params file \"" + paramsFilepath + "\" not found");
 
     bal::trim(arg);
     if (!arg.empty())
@@ -1320,8 +1356,21 @@ SpectrumListPtr filterCreator_AnalyzerType(const MSData& msd, const string& arg,
 {
     istringstream parser(arg);
     string analyzerType;
+    IntegerSet msLevels(1, INT_MAX);
     parser >> analyzerType;
     bal::to_upper(analyzerType);
+
+    if (parser)
+    {
+        string msLevelSets;
+        getlinePortable(parser, msLevelSets);
+
+        if (!msLevelSets.empty())
+        {
+            msLevels = IntegerSet();
+            msLevels.parse(msLevelSets);
+        }
+    }
 
     set<CVID> cvIDs;
 
@@ -1339,7 +1388,7 @@ SpectrumListPtr filterCreator_AnalyzerType(const MSData& msd, const string& arg,
         throw user_error("[SpectrumListFactory::filterCreator_AnalyzerType()] invalid filter argument.");
 
     return SpectrumListPtr(new SpectrumList_Filter(msd.run.spectrumListPtr,
-                                                   SpectrumList_FilterPredicate_AnalyzerType(cvIDs), ilr));
+                                                   SpectrumList_FilterPredicate_AnalyzerType(cvIDs, msLevels), ilr));
 
 }
 UsageInfo usage_analyzerTypeOld = { "<analyzer>",

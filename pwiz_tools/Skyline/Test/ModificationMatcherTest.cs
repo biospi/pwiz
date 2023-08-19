@@ -233,12 +233,12 @@ namespace pwiz.SkylineTest
                 mod.Modification.AminoAcids.Contains(c => c == 'I')));
 
 
-            using (var testDir = new TestFilesDir(TestContext, ZIP_FILE))
-            using (var modMatchDocContainer = InitMatchDocContainer(testDir))
+            TestFilesDir = new TestFilesDir(TestContext, ZIP_FILE);
+            using (var modMatchDocContainer = InitMatchDocContainer(TestFilesDir))
             {
                 var libkeyModMatcher = new LibKeyModificationMatcher();
-                var anlLibSpec = new BiblioSpecLiteSpec("ANL_Combo", testDir.GetTestPath("ANL_Combined.blib"));
-                var yeastLibSpec = new BiblioSpecLiteSpec("Yeast", testDir.GetTestPath("Yeast_atlas_small.blib"));
+                var anlLibSpec = new BiblioSpecLiteSpec("ANL_Combo", TestFilesDir.GetTestPath("ANL_Combined.blib"));
+                var yeastLibSpec = new BiblioSpecLiteSpec("Yeast", TestFilesDir.GetTestPath("Yeast_atlas_small.blib"));
                 modMatchDocContainer.ChangeLibSpecs(new[] { anlLibSpec, yeastLibSpec });
                 var docLibraries = modMatchDocContainer.Document.Settings.PeptideSettings.Libraries.Libraries;
                 int anlLibIndex = docLibraries.IndexOf(library => Equals(library.Name, anlLibSpec.Name));
@@ -266,9 +266,9 @@ namespace pwiz.SkylineTest
                 libkeyModMatcher.CreateMatches(modMatchDocContainer.Document.Settings,
                     docLibraries[yeastLibIndex].Keys, defSetSetLight, defSetHeavy);
                 Assert.IsTrue(libkeyModMatcher.MatcherPepMods.StaticModifications.Contains(mod =>
-                    mod.Formula.Equals(UniMod.GetModification(StaticModList.DEFAULT_NAME, true).Formula) && !mod.IsVariable));
+                    mod.ParsedMolecule.Equals(UniMod.GetModification(StaticModList.DEFAULT_NAME, true).ParsedMolecule) && !mod.IsVariable));
                 Assert.IsTrue(libkeyModMatcher.MatcherPepMods.StaticModifications.Contains(mod =>
-                    mod.Formula.Equals("O") && mod.IsVariable));
+                    mod.ParsedMolecule.ToString().Equals("O") && mod.IsVariable));
             }
         }
 

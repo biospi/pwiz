@@ -23,7 +23,8 @@ AuditLogForm,*
 AuditLogExtraInfoForm,TestAuditLogSaving
 LongOperationRunner.BackgroundThreadLongWaitDlg,*
 BuildBackgroundProteomeDlg,TestBackgroundProteome
-BuildLibraryDlg,TestFullScanId
+BuildLibraryDlg.PropertiesPage,TestFullScanId
+BuildLibraryDlg.FilesPage,TestFullScanId
 BuildLibraryNotification,*
 CalculateIsolationSchemeDlg,TestCalculateIsolationWindows
 CalibrateIrtDlg,IrtFunctionalTest
@@ -76,9 +77,16 @@ EditPepModsDlg,TestExplicitVariable
 EditRemoteAccountDlg,TestUnifi
 EditRTDlg,TestRetentionTimeFilter
 EditServerDlg,TestAccessServer
+EditSpectrumFilterDlg,TestSpectrumClassFilter
 EditStaticModDlg.IsotopeModView,TestEditStaticMod
 EditStaticModDlg.StructuralModView,TestEditStaticMod
 EmptyProteinsDlg,TestImportPeptideSearch
+EncyclopeDiaSearchDlg.FastaPage,TestEncyclopeDiaSearchTutorial
+EncyclopeDiaSearchDlg.PrositPage,TestEncyclopeDiaSearchTutorial
+EncyclopeDiaSearchDlg.NarrowWindowPage,TestEncyclopeDiaSearchTutorial
+EncyclopeDiaSearchDlg.WideWindowPage,TestEncyclopeDiaSearchTutorial
+EncyclopeDiaSearchDlg.SearchSettingsPage,TestEncyclopeDiaSearchTutorial
+EncyclopeDiaSearchDlg.RunPage,TestEncyclopeDiaSearchTutorial
 ExportAnnotationsDlg,TestExportAnnotations
 ExportChromatogramDlg,TestExportChromatogram
 ExportLiveReportDlg,TestReportSummary
@@ -128,6 +136,7 @@ ImportTransitionListErrorDlg,TestExistingExperimentsTutorial
 ListDesigner,TestListDesigner
 ListGridForm,TestListDesigner
 LiveResultsGrid,TestAnnotations
+LKContainerBrowser,TestPanoramaClient
 LocateFileDlg,TestInstallTools
 LongWaitDlg,TestLongWait
 ManageLayoutsForm,TestPivotEditor
@@ -144,6 +153,8 @@ MultiButtonMsgDlg,TestShareSettings
 NameLayoutForm,TestPivotEditor
 NoModeUIDlg,UIModeSettingsTest
 OpenDataSourceDialog,TestRetentionTimeAlignment
+PanoramaFilePicker, TestPanorama
+PanoramaDirectoryPicker, TestPanorama
 PasteDlg.FastaTab,ProteinMetadataFunctionalTests
 PasteDlg.PeptideListTab,TestMethodEditTutorial
 PasteDlg.ProteinListTab,TestMethodEditTutorial
@@ -159,7 +170,6 @@ PeptideSettingsUI.ModificationsTab,TestNeutralLoss
 PeptideSettingsUI.LabelsTab,UIModeSettingsTest
 PeptideSettingsUI.PredictionTab,IrtFunctionalTest
 PeptideSettingsUI.QuantificationTab,TestCalibration
-PeptidesPerProteinDlg,TestImportPeptideSearch
 PermuteIsotopeModificationsDlg,TestModificationPermuter
 PivotEditor,TestPivotEditor
 PopupPickList,TestPrecursorIon
@@ -190,7 +200,9 @@ SelectIrtStandardDlg,TestLibraryBuild
 SequenceTreeForm,*
 ShareListDlg`2,TestShareSettings
 ShareTypeDlg,TestDocumentSharing
+ShareResultsFilesDlg,TestDocumentSharing
 SkylineWindow,*
+SpectrumGridForm,TestSpectrumGrid
 SpectrumChartPropertyDlg,TestMs1Tutorial
 SpectrumLibraryInfoDlg,TestManageLibraryRuns
 StartPage.WizardTab,TestStartPageOpenRecent
@@ -199,6 +211,7 @@ StartPageSettingsUI,TestStartPageImport
 StatementCompletionForm,TestBackgroundProteome
 SynchronizedIntegrationDlg,TestSynchronizedIntegration
 BackgroundEventThreadsTestForm,TestBackgroundEventThreads
+TestPanoramaFolderBrowser, TestPanoramaClient
 ToolOptionsUI,TestAccessServer
 ToolOptionsUI.PanoramaTab,TestAccessServer
 ToolOptionsUI.RemoteTab,TestAccessServer
@@ -224,5 +237,6 @@ ViewEditor.FilterView,TestLiveReportsFilter
 ViewLibraryDlg,TestFullScanId
 VolcanoPlotPropertiesDlg,TestGroupComparisonVolcanoPlot
 VolcanoPlotFormattingDlg,TestVolcanoPlotFormatting
+WebDavBrowser,TestPanoramaClient
 DetectionToolbarProperties, TestDetectionsPlot
 ImportTransitionListColumnSelectDlg,TestExistingExperimentsTutorial

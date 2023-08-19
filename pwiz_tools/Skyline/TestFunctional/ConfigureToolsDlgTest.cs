@@ -785,7 +785,7 @@ namespace pwiz.SkylineTestFunctional
             });
             RunDlg<MessageDlg>(configureToolsDlg.OkDialog, messageDlg =>
             {
-                string supportedTypes = String.Join("; ", ConfigureToolsDlg.EXTENSIONS); // Not L10N
+                string supportedTypes = String.Join("; ", ToolDescription.EXTENSIONS); // Not L10N
                 supportedTypes = supportedTypes.Replace(".", "*."); // Not L10N
                 AssertEx.Contains(messageDlg.Message, string.Format(TextUtil.LineSeparate(
                             Resources.ConfigureToolsDlg_CheckPassTool_The_command_for__0__must_be_of_a_supported_type,
@@ -1009,7 +1009,8 @@ namespace pwiz.SkylineTestFunctional
                 Settings.Default.ToolList.Add(new ToolDescription(EXAMPLE2, EXAMPLE2_EXE, "$(DocumentPath)", "$(DocumentDir)", false, string.Empty)); // Not L10N
 
                 SkylineWindow.Paste("PEPTIDER"); // Not L10N
-                bool saved = SkylineWindow.SaveDocument(TestContext.GetTestPath("ConfigureToolsTest.sky")); // Not L10N
+                string path = TestContext.GetTestResultsPath("ConfigureToolsTest.sky"); // Not L10N
+                bool saved = SkylineWindow.SaveDocument(path); // Not L10N
                 // dotCover can cause trouble with saving
                 Assert.IsTrue(saved);
                 ToolDescription toolMenuItem = Settings.Default.ToolList[0];
@@ -1018,7 +1019,6 @@ namespace pwiz.SkylineTestFunctional
                 string args = toolMenuItem.GetArguments(SkylineWindow.Document, SkylineWindow, SkylineWindow);
                 string initDir = toolMenuItem.GetInitialDirectory(SkylineWindow.Document, SkylineWindow, SkylineWindow);
                 Assert.AreEqual(Path.GetDirectoryName(args), initDir);
-                string path = TestContext.GetTestPath("ConfigureToolsTest.sky"); // Not L10N
                 Assert.AreEqual(args, path);
             });
         }

@@ -51,7 +51,7 @@ namespace pwiz.Skyline.Model.Lib
         {
             int length = PrimitiveArrays.ReadOneValue<int>(stream);
             byte[] buffer = new byte[length];
-            stream.Read(buffer, 0, length);
+            stream.ReadOrThrow(buffer, 0, length);
             var proto = new LibraryKeyProto();
             proto.MergeFrom(new CodedInputStream(buffer));
             switch (proto.KeyType)
@@ -351,7 +351,7 @@ namespace pwiz.Skyline.Model.Lib
                 KeyType = LibraryKeyProto.Types.KeyType.SmallMolecule,
                 Adduct = Adduct.AdductFormula ?? string.Empty,
                 MoleculeName = SmallMoleculeLibraryAttributes.MoleculeName ?? string.Empty,
-                ChemicalFormula = SmallMoleculeLibraryAttributes.ChemicalFormulaOrMassesString ?? string.Empty,
+                ChemicalFormula = SmallMoleculeLibraryAttributes.ChemicalFormulaOrMasses.ToString(),
                 InChiKey = SmallMoleculeLibraryAttributes.InChiKey ?? string.Empty,
                 OtherKeys = SmallMoleculeLibraryAttributes.OtherKeys ?? string.Empty
             };
@@ -393,13 +393,13 @@ namespace pwiz.Skyline.Model.Lib
             }
 
             if (null == smallMoleculeLibraryAttributes.MoleculeName ||
-                null == smallMoleculeLibraryAttributes.ChemicalFormulaOrMassesString ||
+                null == smallMoleculeLibraryAttributes.ChemicalFormulaOrMasses ||
                 null == smallMoleculeLibraryAttributes.InChiKey || 
                 null == smallMoleculeLibraryAttributes.OtherKeys)
             {
                 smallMoleculeLibraryAttributes = SmallMoleculeLibraryAttributes.Create(
                     smallMoleculeLibraryAttributes.MoleculeName ?? string.Empty,
-                    smallMoleculeLibraryAttributes.ChemicalFormulaOrMassesString ?? string.Empty,
+                    smallMoleculeLibraryAttributes.ChemicalFormulaOrMasses ?? ParsedMolecule.EMPTY,
                     smallMoleculeLibraryAttributes.InChiKey ?? string.Empty,
                     smallMoleculeLibraryAttributes.OtherKeys ?? string.Empty);
             }
@@ -409,7 +409,7 @@ namespace pwiz.Skyline.Model.Lib
                 {
                     smallMoleculeLibraryAttributes = valueCache.CacheValue(SmallMoleculeLibraryAttributes.Create(
                         valueCache.CacheValue(smallMoleculeLibraryAttributes.MoleculeName),
-                        valueCache.CacheValue(smallMoleculeLibraryAttributes.ChemicalFormulaOrMassesString),
+                        valueCache.CacheValue(smallMoleculeLibraryAttributes.ChemicalFormulaOrMasses),
                         valueCache.CacheValue(smallMoleculeLibraryAttributes.InChiKey),
                         valueCache.CacheValue(smallMoleculeLibraryAttributes.OtherKeys)
                     ));
@@ -534,7 +534,15 @@ namespace pwiz.Skyline.Model.Lib
 
         public override Target Target
         {
-            get { return PeptideLibraryKeys.First().Target; }
+            get { return new Target(ModifiedSequence); }
+        }
+
+        public string ModifiedSequence
+        {
+            get
+            {
+                return string.Join(@"-", PeptideLibraryKeys) + @"-" + string.Concat(Crosslinks);
+            }
         }
 
         public int Charge { get; private set; }
@@ -688,7 +696,7 @@ namespace pwiz.Skyline.Model.Lib
 
         public override string ToString()
         {
-            return string.Join(@"-", PeptideLibraryKeys) + @"-" + string.Concat(Crosslinks) + Transition.GetChargeIndicator(Adduct);
+            return ModifiedSequence + Transition.GetChargeIndicator(Adduct);
         }
 
         /// <summary>
@@ -701,6 +709,10 @@ namespace pwiz.Skyline.Model.Lib
             var consumedPeptides = new HashSet<int>();
             foreach (var crosslink in Crosslinks)
             {
+                if (!HasValidIndexes(crosslink))
+                {
+                    return false;
+                }
                 var peptideIndexesWithLinks = ImmutableList.ValueOf(crosslink.PeptideIndexesWithLinks);
                 if (peptideIndexesWithLinks.Count == 1)
                 {
@@ -757,6 +769,52 @@ namespace pwiz.Skyline.Model.Lib
                 return false;
             }
             return true;
+        }
+
+        private bool HasValidIndexes(Crosslink crosslink)
+        {
+            if (crosslink.Positions.Count > PeptideLibraryKeys.Count)
+            {
+                return false;
+            }
+
+            for (int iPeptide = 0; iPeptide < crosslink.Positions.Count; iPeptide++)
+            {
+                var peptideSequence = PeptideLibraryKeys[iPeptide].UnmodifiedSequence;
+                foreach (var position in crosslink.Positions[iPeptide])
+                {
+                    if (position < 1 || position > peptideSequence.Length)
+                    {
+                        return false;
+                    }
+                }
+            }
+
+            return true;
+        }
+
+        protected bool Equals(CrosslinkLibraryKey other)
+        {
+            return Charge == other.Charge && Equals(PeptideLibraryKeys, other.PeptideLibraryKeys) && Equals(Crosslinks, other.Crosslinks);
+        }
+
+        public override bool Equals(object obj)
+        {
+            if (ReferenceEquals(null, obj)) return false;
+            if (ReferenceEquals(this, obj)) return true;
+            if (obj.GetType() != this.GetType()) return false;
+            return Equals((CrosslinkLibraryKey)obj);
+        }
+
+        public override int GetHashCode()
+        {
+            unchecked
+            {
+                var hashCode = Charge;
+                hashCode = (hashCode * 397) ^ (PeptideLibraryKeys != null ? PeptideLibraryKeys.GetHashCode() : 0);
+                hashCode = (hashCode * 397) ^ (Crosslinks != null ? Crosslinks.GetHashCode() : 0);
+                return hashCode;
+            }
         }
     }
 }

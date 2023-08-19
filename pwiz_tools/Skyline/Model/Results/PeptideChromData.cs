@@ -144,7 +144,7 @@ namespace pwiz.Skyline.Model.Results
             foreach (var set in _dataSets.ToArray())
             {
                 Color peptideColor = NodePep != null ? NodePep.Color : PeptideDocNode.UNKNOWN_COLOR;
-                if (!set.Load(provider, NodePep != null ? NodePep.ModifiedTarget : null, peptideColor))
+                if (!set.Load(provider, ChromatogramGroupId.ForPeptide(NodePep, null), peptideColor))
                     _dataSets.Remove(set);
             }
             //Console.Out.WriteLine("Ending {0} {1} {2}", NodePep, _dataSets.Count, RuntimeHelpers.GetHashCode(this));
@@ -155,21 +155,15 @@ namespace pwiz.Skyline.Model.Results
 
         public void PickChromatogramPeaks()
         {
-            var explicitPeakBounds = _settings.GetExplicitPeakBounds(NodePep, FileInfo.FilePath);
-            var peakBounds = explicitPeakBounds == null
-                ? null
-                : new PeakBounds(explicitPeakBounds.StartTime, explicitPeakBounds.EndTime);
-            PickChromatogramPeaks(peakBounds);
-        }
-
-        public void PickChromatogramPeaks(PeakBounds peakBounds)
-        {
             ExplicitPeakBoundsFunc explicitPeakBoundsFunc = null;
-            if (peakBounds != null)
+            var explicitPeakBounds = _settings.GetExplicitPeakBounds(NodePep, FileInfo.FilePath);
+            if (explicitPeakBounds != null)
             {
-                explicitPeakBoundsFunc = (transitionGroup, transition) => peakBounds;
+                var peakBounds = explicitPeakBounds.IsEmpty
+                    ? null
+                    : new PeakBounds(explicitPeakBounds.StartTime, explicitPeakBounds.EndTime);
+                explicitPeakBoundsFunc = (transitionGroup, transition)=>peakBounds;
             }
-
             PickChromatogramPeaks(explicitPeakBoundsFunc);
         }
 
@@ -501,8 +495,8 @@ namespace pwiz.Skyline.Model.Results
         {
             get
             {
-                // We do not save raw times if there is an optimization function because it is too hard.
-                return OptimizableRegression == null;
+                // We do not save raw times if there is an optimization function and it is SRM because it is too hard.
+                return OptimizableRegression == null || !FileInfo.IsSrm;
             }
         }
 
@@ -935,7 +929,9 @@ namespace pwiz.Skyline.Model.Results
             for (int i = 0; i < DataSets.Count; i++)
             {
                 var firstKey = DataSets[i].FirstKey;
-                if (Equals(chromDataSet.FirstKey.Precursor, firstKey.Precursor)) // Don't merge dissimilar precursors
+                if (Equals(chromDataSet.FirstKey.Precursor, firstKey.Precursor)
+                    && Equals(chromDataSet.FirstKey.ChromatogramGroupId?.SpectrumClassFilter, 
+                        firstKey.ChromatogramGroupId?.SpectrumClassFilter)) // Don't merge dissimilar precursors
                 {
                     DataSets[i].Merge(chromDataSet);
                 }
@@ -998,10 +994,8 @@ namespace pwiz.Skyline.Model.Results
         }
         internal IEnumerable<ChromatogramGroupInfo> MakeChromatogramGroupInfos(IEnumerable<ChromDataSet> dataSets)
         {
-            var chromCachedFile = new ChromCachedFile(FileInfo.FilePath, default(ChromCachedFile.FlagValues),
-                FileInfo.FileWriteTime ?? DateTime.FromBinary(0), FileInfo.FileWriteTime, (float) FileInfo.MaxRetentionTime, (float) FileInfo.MaxIntensity, FileInfo.IonMobilityUnits, 
-                FileInfo.SampleId, FileInfo.InstrumentSerialNumber, FileInfo.InstrumentInfoList);
-            
+            var chromCachedFile = new ChromCachedFile(FileInfo);
+
             foreach (var chromDataSet in dataSets)
             {
                 yield return chromDataSet.ToChromatogramGroupInfo(DetailedPeakFeatureCalculators.FeatureNames, chromCachedFile);

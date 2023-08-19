@@ -204,8 +204,7 @@ namespace pwiz.Skyline.Model.Results
                 var chromatogramGroupInfo = chromatogramGroupInfos[iTransitionGroup];
                 foreach (var transition in transitionGroupDocNode.Transitions)
                 {
-                    var chromatogramInfo = chromatogramGroupInfo.GetTransitionInfo(transition, MzMatchTolerance,
-                        TransformChrom.raw, ChromatogramSet.OptimizationFunction);
+                    var chromatogramInfo = chromatogramGroupInfo.GetTransitionInfo(transition, MzMatchTolerance, TransformChrom.raw);
                     if (chromatogramInfo == null)
                     {
                         continue;
@@ -337,14 +336,6 @@ namespace pwiz.Skyline.Model.Results
 
             return null;
         }
-        public IEnumerable<float> ScorePeak(double startTime, double endTime, IEnumerable<DetailedPeakFeatureCalculator> calculators)
-        {
-            var peptideChromDataSets = MakePeptideChromDataSets();
-            var explicitPeakBounds = new PeakBounds(startTime, endTime);
-            peptideChromDataSets.PickChromatogramPeaks(explicitPeakBounds);
-            return peptideChromDataSets.DataSets[0].PeakSets.First().DetailScores;
-        }
-
         internal PeptideChromDataSets MakePeptideChromDataSets()
         {
             var peptideChromDataSets = new PeptideChromDataSets(PeptideDocNode, Settings, ChromFileInfo,
@@ -360,18 +351,18 @@ namespace pwiz.Skyline.Model.Results
                 foreach (var transition in transitionGroup.Transitions)
                 {
                     var chromatogramInfo =
-                        chromatogramGroupInfo.GetTransitionInfo(transition, MzMatchTolerance, TransformChrom.raw, null);
+                        chromatogramGroupInfo.GetTransitionInfo(transition, MzMatchTolerance, TransformChrom.raw);
                     if (chromatogramInfo == null)
                     {
                         continue;
                     }
                     var rawTimeIntensities = chromatogramInfo.TimeIntensities;
-                    chromatogramInfo.Transform(TransformChrom.interpolated);
-                    var interpolatedTimeIntensities = chromatogramInfo.TimeIntensities;
-                    var chromKey = new ChromKey(PeptideDocNode.ModifiedTarget, transitionGroup.PrecursorMz, null,
-                        transition.Mz, 0, 0, transition.IsMs1 ? ChromSource.ms1 : ChromSource.fragment,
-                        ChromExtractor.summed, true, false);
-                    chromDatas.Add(new ChromData(chromKey, transition, rawTimeIntensities, interpolatedTimeIntensities));
+                    var chromKey = new ChromKey(
+                        new ChromatogramGroupId(PeptideDocNode.ChromatogramTarget, transitionGroup.SpectrumClassFilter),
+                        transitionGroup.PrecursorMz, null,
+                        transition.Mz, 0, 0, 0, transition.IsMs1 ? ChromSource.ms1 : ChromSource.fragment,
+                        ChromExtractor.summed);
+                    chromDatas.Add(new ChromData(chromKey, transition, rawTimeIntensities, rawTimeIntensities));
                 }
 
                 if (!chromDatas.Any())

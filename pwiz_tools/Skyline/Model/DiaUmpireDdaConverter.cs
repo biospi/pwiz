@@ -111,34 +111,37 @@ namespace pwiz.Skyline.Model
                     if (MsDataFileImpl.IsValidFile(outputFilepath))
                     {
                         var outputFileConfig = DiaUmpire.Config.GetConfigFromDiaUmpireOutput(outputFilepath);
-                        bool equivalentConfig = true;
-                        foreach (var kvp in outputFileConfig.Parameters)
+                        if (outputFileConfig != null)
                         {
-                            if (!AreValuesEquivalent(kvp.Value.ToString(), _diaUmpireConfig.Parameters[kvp.Key].ToString()))
+                            bool equivalentConfig = true;
+                            foreach (var kvp in outputFileConfig.Parameters)
                             {
-                                equivalentConfig = false;
-                                break;
+                                if (!AreValuesEquivalent(kvp.Value.ToString(), _diaUmpireConfig.Parameters[kvp.Key].ToString()))
+                                {
+                                    equivalentConfig = false;
+                                    break;
+                                }
                             }
-                        }
 
-                        // TODO: The VariableWindows UserParam is being truncated so can't be checked here if it's an mz5 output file; fix mz5 UserParams not able to be longer than 256 bytes?
-                        //if (equivalentConfig && outputFileConfig.WindowScheme == DiaUmpire.WindowScheme.SWATH_Variable)
-                        //    equivalentConfig = outputFileConfig.VariableWindows.SequenceEqual(_diaUmpireConfig.VariableWindows);
+                            // TODO: The VariableWindows UserParam is being truncated so can't be checked here if it's an mz5 output file; fix mz5 UserParams not able to be longer than 256 bytes?
+                            //if (equivalentConfig && outputFileConfig.WindowScheme == DiaUmpire.WindowScheme.SWATH_Variable)
+                            //    equivalentConfig = outputFileConfig.VariableWindows.SequenceEqual(_diaUmpireConfig.VariableWindows);
 
-                        if (equivalentConfig)
-                        {
-                            progressMonitor?.UpdateProgress(status.ChangeMessage(
-                                string.Format(Resources.DiaUmpireDdaConverter_Run_Re_using_existing_DiaUmpire_file__with_equivalent_settings__for__0_,
-                                    spectrumSource.GetSampleOrFileName())));
-                            continue;
+                            if (equivalentConfig)
+                            {
+                                progressMonitor?.UpdateProgress(status.ChangeMessage(
+                                    string.Format(Resources.DiaUmpireDdaConverter_Run_Re_using_existing_DiaUmpire_file__with_equivalent_settings__for__0_,
+                                        spectrumSource.GetSampleOrFileName())));
+                                continue;
+                            }
                         }
                     }
 
                     if (File.Exists(outputFilepath))
                         FileEx.SafeDelete(outputFilepath);
 
-                    string tmpFilepath = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName() + MsConvertOutputExtension);
-                    string tmpParams = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName() + @".params");
+                    string tmpFilepath = Path.Combine(Path.GetTempPath(), PathEx.GetRandomFileName() + MsConvertOutputExtension); // N.B. FileEx.GetRandomFileName adds unusual characters in test mode
+                    string tmpParams = Path.Combine(Path.GetTempPath(), PathEx.GetRandomFileName() + @".params");
                     //_diaUmpireConfig.Parameters["Thread"] = 1; // needed to compare DIAUMPIRE_DEBUG output
                     _diaUmpireConfig.WriteConfigToFile(tmpParams);
 
@@ -150,10 +153,10 @@ namespace pwiz.Skyline.Model
                         Arguments =
                             $"-v --32 -z {MsConvertOutputFormatParam} " +
                             $"-o {Path.GetDirectoryName(tmpFilepath).Quote()} " +
-                            $"--outfile {Path.GetFileName(tmpFilepath)} " +
+                            $"--outfile {Path.GetFileName(tmpFilepath).Quote()} " +
                             " --acceptZeroLengthSpectra --simAsSpectra --combineIonMobilitySpectra" +
                             " --filter \"peakPicking true 1-\"" + 
-                            " --filter " + $@"diaUmpire params={tmpParams}".Quote() + " " +
+                            " --filter " + $@"diaUmpire params={tmpParams.EscapedPathForNestedCommandLineQuotes()}".Quote() + " " +
                             spectrumSource.ToString().Quote()
                     };
 

@@ -55,7 +55,7 @@ class Serializer_mzML::Impl
 
     void write(ostream& os, const MSData& msd,
                const pwiz::util::IterationListenerRegistry* iterationListenerRegistry,
-               bool useWorkerThreads) const;
+               bool useWorkerThreads, bool continueOnError) const;
 
     void read(shared_ptr<istream> is, MSData& msd) const;
 
@@ -80,9 +80,18 @@ void writeSpectrumIndex(XMLWriter& xmlWriter,
         if (spectrumListPtr->size() != positions.size())
             throw runtime_error("[Serializer_mzML::writeSpectrumIndex()] Sizes differ.");
 
+        int skipped = 0;
         for (unsigned int i=0; i<positions.size(); ++i)
         {
-            const SpectrumIdentity& spectrum = spectrumListPtr->spectrumIdentity(i);
+            if (positions[i] < 0)
+            {
+                ++skipped;
+                continue;
+            }
+
+            SpectrumIdentity spectrum = spectrumListPtr->spectrumIdentity(i);
+            if (skipped > 0)
+                spectrum.index -= skipped;
 
             XMLWriter::Attributes attributes;
             attributes.push_back(make_pair("idRef", spectrum.id));
@@ -112,9 +121,18 @@ void writeChromatogramIndex(XMLWriter& xmlWriter,
         if (chromatogramListPtr->size() != positions.size())
             throw runtime_error("[Serializer_mzML::WriteChromatogramIndex()] sizes differ.");
 
+        int skipped = 0;
         for (unsigned int i=0; i<positions.size(); ++i)
         {
-            const ChromatogramIdentity& chromatogram = chromatogramListPtr->chromatogramIdentity(i);
+            if (positions[i] < 0)
+            {
+                ++skipped;
+                continue;
+            }
+
+            ChromatogramIdentity chromatogram = chromatogramListPtr->chromatogramIdentity(i);
+            if (skipped > 0)
+                chromatogram.index -= skipped;
 
             XMLWriter::Attributes Attributes;
             Attributes.push_back(make_pair("idRef", chromatogram.id));        
@@ -133,7 +151,7 @@ void writeChromatogramIndex(XMLWriter& xmlWriter,
 
 void Serializer_mzML::Impl::write(ostream& os, const MSData& msd,
     const pwiz::util::IterationListenerRegistry* iterationListenerRegistry,
-    bool useWorkerThreads) const
+    bool useWorkerThreads, bool continueOnError) const
 {
     // instantiate XMLWriter
 
@@ -169,7 +187,7 @@ void Serializer_mzML::Impl::write(ostream& os, const MSData& msd,
     vector<stream_offset> chromatogramPositions;
     BinaryDataEncoder::Config bdeConfig = config_.binaryDataEncoderConfig;
     bdeConfig.byteOrder = BinaryDataEncoder::ByteOrder_LittleEndian; // mzML always little endian
-    IO::write(xmlWriter, msd, bdeConfig, &spectrumPositions, &chromatogramPositions, iterationListenerRegistry, useWorkerThreads);
+    IO::write(xmlWriter, msd, bdeConfig, &spectrumPositions, &chromatogramPositions, iterationListenerRegistry, useWorkerThreads, continueOnError);
 
     // <indexedmzML> end
     
@@ -295,10 +313,10 @@ PWIZ_API_DECL Serializer_mzML::Serializer_mzML(const Config& config)
 
 PWIZ_API_DECL void Serializer_mzML::write(ostream& os, const MSData& msd,
     const pwiz::util::IterationListenerRegistry* iterationListenerRegistry,
-    bool useWorkerThreads) const
+    bool useWorkerThreads, bool continueOnError) const
   
 {
-    return impl_->write(os, msd, iterationListenerRegistry, useWorkerThreads);
+    return impl_->write(os, msd, iterationListenerRegistry, useWorkerThreads, continueOnError);
 }
 
 

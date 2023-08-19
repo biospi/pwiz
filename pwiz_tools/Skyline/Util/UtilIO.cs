@@ -946,6 +946,27 @@ namespace pwiz.Skyline.Util
                 return elapsedSpan.TotalMilliseconds + @" milliseconds";
             return deltaTicks + @" ticks";
         }
+
+        [DllImport("Kernel32.dll", CharSet = CharSet.Unicode)]
+        static extern bool CreateHardLink(string lpFileName, string lpExistingFileName, IntPtr lpSecurityAttributes);
+
+        /// <summary>
+        /// Tries to create a hard-link from sourceFilepath to destinationFilepath and returns true if the link was successfully created.
+        /// </summary>
+        public static bool CreateHardLink(string sourceFilepath, string destinationFilepath)
+        {
+            return CreateHardLink(destinationFilepath, sourceFilepath, IntPtr.Zero);
+        }
+
+        /// <summary>
+        /// Tries to create a hard-link from sourceFilepath to destinationFilepath and if that fails, it copies the file instead.
+        /// </summary>
+        public static void HardLinkOrCopyFile(string sourceFilepath, string destinationFilepath, bool overwrite = false)
+        {
+            Directory.CreateDirectory(PathEx.GetDirectoryName(destinationFilepath));
+            if (!CreateHardLink(sourceFilepath, destinationFilepath))
+                File.Copy(sourceFilepath, destinationFilepath, overwrite);
+        }
     }
 
     public static class DirectoryEx
@@ -1037,35 +1058,6 @@ namespace pwiz.Skyline.Util
                 zipFileName = zipFileName.Substring(6);
             }
             return true;
-        }
-    }
-
-    public static class StreamEx
-    {
-        public static void TransferBytes(this Stream inStream, Stream outStream, long bytesToTransfer)
-        {
-            int bufferSize = (int)Math.Min(bytesToTransfer, 0x40000); // 256K;
-            inStream.TransferBytes(outStream, bytesToTransfer, new byte[bufferSize]);
-        }
-
-        public static void TransferBytes(this Stream inStream, Stream outStream, long bytesToTransfer, byte[] buffer)
-        {
-            long bytesTransferred = 0;
-            long bytesRemaining = bytesToTransfer;
-            int len;
-            while (bytesToTransfer > 0 && (len = inStream.Read(buffer, 0, (int)Math.Min(bytesRemaining, buffer.Length))) != 0)
-            {
-                outStream.Write(buffer, 0, len);
-                bytesRemaining -= len;
-                bytesTransferred += len;
-            }
-
-            if (bytesTransferred != bytesToTransfer)
-            {
-                throw new InvalidDataException(string.Format(
-                    @"Tried to transfer {0} bytes, but actual byte count transferred was {1}", bytesToTransfer,
-                    bytesTransferred));
-            }
         }
     }
 
@@ -1352,7 +1344,7 @@ namespace pwiz.Skyline.Util
         public TemporaryDirectory(string dirPath = null, string tempPrefix = TEMP_PREFIX)
         {
             if (string.IsNullOrEmpty(dirPath))
-                DirPath = Path.Combine(Path.GetTempPath(), tempPrefix + Path.GetRandomFileName());
+                DirPath = Path.Combine(Path.GetTempPath(), tempPrefix + PathEx.GetRandomFileName()); // N.B. FileEx.GetRandomFileName adds unusual characters in test mode
             else
                 DirPath = dirPath;
             Helpers.TryTwice(() => Directory.CreateDirectory(DirPath));
@@ -1363,6 +1355,26 @@ namespace pwiz.Skyline.Util
         public void Dispose()
         {
             DirectoryEx.SafeDelete(DirPath);
+        }
+    }
+
+    public class TemporaryEnvironmentVariable : IDisposable
+    {
+        public TemporaryEnvironmentVariable(string name, string newValue)
+        {
+            Name = name;
+            OldValue = Environment.GetEnvironmentVariable(name);
+            NewValue = newValue;
+            Environment.SetEnvironmentVariable(name, newValue);
+        }
+
+        public string Name { get; }
+        public string OldValue { get; }
+        public string NewValue { get; }
+
+        public void Dispose()
+        {
+            Environment.SetEnvironmentVariable(Name, OldValue);
         }
     }
 

@@ -22,6 +22,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
 using pwiz.Common.DataBinding.Attributes;
+using pwiz.Skyline.Model.Databinding;
 using pwiz.Skyline.Model.Databinding.Entities;
 using pwiz.Skyline.Model.ElementLocators;
 using pwiz.Skyline.Util.Extensions;
@@ -32,11 +33,16 @@ namespace pwiz.Skyline.Model.AuditLog.Databinding
     {
         private readonly int _detailIndex;
 
-        public AuditLogDetailRow(AuditLogRow row, AuditLogRow.AuditLogRowId id) : base(row.DataSchema)
+        public AuditLogDetailRow(AuditLogRow row, AuditLogRow.AuditLogRowId id)
         {
             AuditLogRow = row;
             Id = id;
             _detailIndex = id.Minor - 1;
+        }
+
+        protected override SkylineDataSchema GetDataSchema()
+        {
+            return AuditLogRow.DataSchema;
         }
 
         public AuditLogRow AuditLogRow { get; private set; }
@@ -109,7 +115,7 @@ namespace pwiz.Skyline.Model.AuditLog.Databinding
 
         public override ElementRef GetElementRef()
         {
-            return AuditLogEntryRef.PROTOTYPE.ChangeParent(AuditLogRow.GetElementRef()).ChangeName(Id.Minor.ToString(CultureInfo.InvariantCulture));
+            return AuditLogDetailRef.PROTOTYPE.ChangeParent(AuditLogRow.GetElementRef()).ChangeName(Id.Minor.ToString(CultureInfo.InvariantCulture));
         }
     }
 }

@@ -109,9 +109,9 @@
     <Reference Include="System.Core">
       <RequiredTargetFramework>3.5</RequiredTargetFramework>
     </Reference>
-    <Reference Include="System.Data.SQLite, Version=1.0.105.2, Culture=neutral, PublicKeyToken=db937bc2d44ff139, processorArchitecture=$(PLATFORM)">
+    <Reference Include="System.Data.SQLite, Version=1.0.105.2, Culture=neutral, PublicKeyToken=db937bc2d44ff139, processorArchitecture=$(Platform)">
       <SpecificVersion>False</SpecificVersion>
-      <HintPath>..\..\..\libraries\SQLite\$(PLATFORM)\System.Data.SQLite.dll</HintPath>
+      <HintPath>..\..\..\libraries\SQLite\$(Platform)\System.Data.SQLite.dll</HintPath>
       <Private>True</Private>
     </Reference>
     <Reference Include="System.Design" />
@@ -141,6 +141,10 @@
     <Compile Include="DiaUmpireTutorialTest.cs" />
     <Compile Include="DiaSwathTutorialTest.cs" />
     <Compile Include="PerfAssociateProteinsTest.cs" />
+    <Compile Include="PerfCommandlineCreateImsDbTest.cs" />
+    <Compile Include="PerfDetectLockmassFunctionTest.cs" />
+    <Compile Include="EncyclopeDiaSearchTutorialTest.cs" />
+    <Compile Include="PerfHighEnergyIonMobilityOffsetForPRM.cs" />
     <Compile Include="PerfImportBrukerPasefBbCIDTest.cs" />
     <Compile Include="PerfImportHundredsOfReplicatesTest.cs" />
     <Compile Include="HiResMetabolomicsTutorial.cs" />
@@ -153,9 +157,9 @@
     <Compile Include="PerfImportDiaPasefTest.cs" />
     <Compile Include="PerfImportPasefMascotTest.cs" />
     <Compile Include="PerfImportPrmPasefTest.cs" />
+    <Compile Include="PerfImportResultsAgilentIMSFringeValues.cs" />
     <Compile Include="PerfImportResultsAgilentIMSTest.cs" />
     <Compile Include="PerfImportResultsAgilentSpectrumMillIMSTest.cs" />
-    <Compile Include="PerfImportResultsHugeTest.cs" />
     <Compile Include="PerfImportResultsWatersIMSTest.cs" />
     <Compile Include="PerfLockmassCmdlineTest.cs" />
     <Compile Include="PerfLockmassTest.cs" />
@@ -172,6 +176,7 @@
     <Compile Include="PerfPeakViewConvert.cs" />
     <Compile Include="PerfThermoFAIMSTest.cs" />
     <Compile Include="PerfThermoNegativeFAIMSTest.cs" />
+    <Compile Include="PerfThermoSureQuantFAIMSTest.cs" />
     <Compile Include="PerfTicAreaTest.cs" />
     <Compile Include="PerfUniquePeptidesTest.cs" />
     <Compile Include="PerfWatersSonarTest.cs" />
@@ -188,7 +193,7 @@
       <Project>{A5527BE9-4A62-458F-AE47-F0F9204A5CF9}</Project>
       <Name>Common</Name>
     </ProjectReference>
-    <ProjectReference Include="..\..\Shared\Common\CommonUtil.csproj">
+    <ProjectReference Include="..\..\Shared\CommonUtil\CommonUtil.csproj">
       <Project>{13BF2FFB-50A1-4AB1-83A4-5733E36905CE}</Project>
       <Name>CommonUtil</Name>
     </ProjectReference>

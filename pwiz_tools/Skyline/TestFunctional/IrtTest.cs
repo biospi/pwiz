@@ -57,7 +57,6 @@ namespace pwiz.SkylineTestFunctional
         {
             RunIrtTest();
             RunCalibrationTest();
-            RunRemoveDuplicatesTest();
         }
 
         private void RunIrtTest()
@@ -122,12 +121,8 @@ namespace pwiz.SkylineTestFunctional
             var countDlg = ShowDialog<AddIrtStandardsDlg>(calibrateDlg.UseResults);
             RunUI(() => countDlg.StandardCount = CalibrateIrtDlg.MIN_STANDARD_PEPTIDES - 1);
             RunDlg<MessageDlg>(countDlg.OkDialog, messageDlg => messageDlg.OkDialog());
-            RunUI(() =>
-            {
-                countDlg.StandardCount = peptideCount;
-                countDlg.OkDialog();
-            });
-            WaitForClosedForm(countDlg);
+            RunUI(() => countDlg.StandardCount = peptideCount);
+            OkDialog(countDlg, countDlg.OkDialog);
 
             Assert.AreEqual(peptideCount, calibrateDlg.StandardPeptideCount);
 
@@ -156,10 +151,8 @@ namespace pwiz.SkylineTestFunctional
                           //and 3 above 100
                           calibrateDlg.SetFixedPoints(3, 7);
                           calibrateDlg.StandardName = "Document1";
-
-                          calibrateDlg.OkDialog();
                       });
-            WaitForClosedForm(calibrateDlg);
+            OkDialog(calibrateDlg, calibrateDlg.OkDialog);
 
             //Now check that the peptides were passed to the EditIrtCalcDlg
             RunUI(() =>
@@ -207,7 +200,7 @@ namespace pwiz.SkylineTestFunctional
             // Paste Biognosys-provided values
             RunUI(() =>
                       {
-                          string standardText = BuildStandardText(standard, seq => seq);
+                          string standardText = BuildStandardText(standard);
                           SetClipboardText(standardText);
                           irtDlg1.ClearStandardPeptides();
                           irtDlg1.DoPasteStandard();
@@ -336,9 +329,8 @@ namespace pwiz.SkylineTestFunctional
                           editRT1.SetRegressionName("iRT Regression");
                           editRT1.AddResults();
                           editRT1.ChooseCalculator(irtCalc);
-                          editRT1.OkDialog();
                       });
-            WaitForClosedForm(editRT1);
+            OkDialog(editRT1, editRT1.OkDialog);
 
             var editRT1A = ShowDialog<EditRTDlg>(peptideSettingsDlg1.AddRTRegression);
 
@@ -352,8 +344,7 @@ namespace pwiz.SkylineTestFunctional
             RunDlg<RTDetails>(editRT1A.ShowDetails, detailsDlg => detailsDlg.Close());
 
             OkDialog(editRT1A, editRT1A.OkDialog);
-            RunUI(peptideSettingsDlg1.CancelButton.PerformClick);
-            WaitForClosedForm(peptideSettingsDlg1);
+            OkDialog(peptideSettingsDlg1, peptideSettingsDlg1.CancelButton.PerformClick);
 
             var docPeptides = new List<MeasuredRetentionTime>();
             RunUI(() =>
@@ -578,35 +569,27 @@ namespace pwiz.SkylineTestFunctional
             var recalibrateDlg2 = ShowDialog<MultiButtonMsgDlg>(addPeptidesDlg.OkDialog);
             OkDialog(recalibrateDlg2, recalibrateDlg2.Btn1Click);
 
-            RunUI(() =>
-                      {
-                          Assert.AreEqual(18, irtDlg3.LibraryPeptideCount);
-                          irtDlg3.OkDialog();
-                      });
-            WaitForClosedForm(irtDlg3);
+            RunUI(() => Assert.AreEqual(18, irtDlg3.LibraryPeptideCount));
+            OkDialog(irtDlg3, irtDlg3.OkDialog);
             
-            RunUI(editCalculator.OkDialog);
-            WaitForClosedForm(editCalculator);
+            OkDialog(editCalculator, editCalculator.OkDialog);
 
             RunUI(() =>
                       {
                           editRT3.AddResults();
                           editRT3.ChooseCalculator("iRT Document Calculator");
                           editRT3.SetTimeWindow(2.0);
-                          editRT3.OkDialog();
                       });
-            WaitForClosedForm(editRT3);
+            OkDialog(editRT3, editRT3.OkDialog);
 
             //Then choose the new, document-based regression and turn off prediction
             RunUI(() =>
                       {
                           peptideSettingsDlg3.ChooseRegression("iRT Document Regression");
                           peptideSettingsDlg3.IsUseMeasuredRT = true;
-                          peptideSettingsDlg3.OkDialog();
-
                       });
             
-            WaitForClosedForm(peptideSettingsDlg3);
+            OkDialog(peptideSettingsDlg3, peptideSettingsDlg3.OkDialog);
 
             Assert.IsNull(FindOpenForm<MessageDlg>());
 
@@ -615,12 +598,8 @@ namespace pwiz.SkylineTestFunctional
 
             //Turn on prediction for scheduling
             var peptideSettingsDlg4 = ShowDialog<PeptideSettingsUI>(SkylineWindow.ShowPeptideSettingsUI);
-            RunUI(() =>
-                                          {
-                                              peptideSettingsDlg4.IsUseMeasuredRT = false;
-                                              peptideSettingsDlg4.OkDialog();
-                                          });
-            WaitForClosedForm(peptideSettingsDlg4);
+            RunUI(() => peptideSettingsDlg4.IsUseMeasuredRT = false);
+            OkDialog(peptideSettingsDlg4, peptideSettingsDlg4.OkDialog);
 
             //Export the prediction-based transition list 
             ExportMethod(testFilesDir.GetTestPath("PredictionTL.csv"));
@@ -679,8 +658,7 @@ namespace pwiz.SkylineTestFunctional
             //Try to open a file that does not exist: error
             RunDlg<MessageDlg>(() => irtDlg5.OpenDatabase(databasePath), messageDlg => messageDlg.OkDialog());
 
-            RunUI(() => irtDlg5.CancelButton.PerformClick());
-            WaitForClosedForm(irtDlg5);
+            OkDialog(irtDlg5, irtDlg5.CancelDialog);
 
             //In order to export a transition list, we have to set the RT regression to have the iRT Calc.
             //This means that the iRT calc must have its database connected - else the dialog will not let
@@ -696,17 +674,15 @@ namespace pwiz.SkylineTestFunctional
                           editRT5.SetRegressionName("iRT Test Regression");
                           editRT5.AddResults();
                           editRT5.ChooseCalculator(irtCalc);
-                          editRT5.OkDialog();
                       });
-            WaitForClosedForm(editRT5);
+            OkDialog(editRT5, editRT5.OkDialog);
 
             RunUI(() =>
                       {
                           peptideSettingsDlg5.ChooseRegression("iRT Test Regression");
                           peptideSettingsDlg5.IsUseMeasuredRT = false; //Use prediction
-                          peptideSettingsDlg5.OkDialog();
                       });
-            WaitForClosedForm(peptideSettingsDlg5);
+            OkDialog(peptideSettingsDlg5, peptideSettingsDlg5.OkDialog);
 
             RunUI(() => SkylineWindow.SaveDocument());
 
@@ -721,8 +697,7 @@ namespace pwiz.SkylineTestFunctional
             // Used to cause a message box, but should work now, because iRT databases get loaded once
             RunUI(() => exportTransList.SetMethodType(ExportMethodType.Scheduled));
 
-            RunUI(() => exportTransList.CancelButton.PerformClick());
-            WaitForClosedForm(exportTransList);
+            OkDialog(exportTransList, exportTransList.CancelDialog);
 
             // Used to cause a message box, but should work now, because iRT databases get loaded once
             RunUI(() => SkylineWindow.ChooseCalculator(irtCalc));
@@ -782,31 +757,31 @@ namespace pwiz.SkylineTestFunctional
                 Assert.IsTrue(regressionOptions.Select(opt => opt.Name).Contains(IrtStandard.PIERCE.Name));
                 Assert.IsTrue(ReferenceEquals(calibrateIrtDlg.SelectedRegressionOption, regressionOptions[0]));
             });
-            RunDlg<MessageDlg>(() => calibrateIrtDlg.GraphRegression(), false);
-            RunDlg<MessageDlg>(() => calibrateIrtDlg.GraphIrts(), false);
+            ShowAndCancelDlg<MessageDlg>(() => calibrateIrtDlg.GraphRegression());
+            ShowAndCancelDlg<MessageDlg>(() => calibrateIrtDlg.GraphIrts());
             var addIrtDlg = ShowDialog<AddIrtStandardsDlg>(calibrateIrtDlg.UseResults);
-            RunDlg<MessageDlg>(() => addIrtDlg.OkDialog(), false); // try empty textbox
+            ShowAndCancelDlg<MessageDlg>(() => addIrtDlg.OkDialog()); // try empty textbox
             RunUI(() => addIrtDlg.StandardCount = CalibrateIrtDlg.MIN_STANDARD_PEPTIDES - 1);
-            RunDlg<MessageDlg>(() => addIrtDlg.OkDialog(), false); // try below minimum
+            ShowAndCancelDlg<MessageDlg>(() => addIrtDlg.OkDialog()); // try below minimum
             RunUI(() => addIrtDlg.StandardCount = SkylineWindow.Document.PeptideCount + 1);
-            RunDlg<MessageDlg>(() => addIrtDlg.OkDialog(), false); // try above maximum
+            ShowAndCancelDlg<MessageDlg>(() => addIrtDlg.OkDialog()); // try above maximum
             RunUI(() => addIrtDlg.StandardCount = 10);
             OkDialog(addIrtDlg, addIrtDlg.OkDialog);
             RunUI(() => Assert.AreEqual(10, calibrateIrtDlg.StandardPeptideCount));
-            RunDlg<GraphRegression>(() => calibrateIrtDlg.GraphRegression(), false, dlg =>
+            RunDlg<GraphRegression>(() => calibrateIrtDlg.GraphRegression(), dlg =>
             {
                 Assert.AreEqual(1, dlg.RegressionGraphDatas.Count);
                 Assert.AreEqual(2, dlg.RegressionGraphDatas.First().RegularPoints.Count);
                 dlg.CloseDialog();
             });
-            RunDlg<GraphRegression>(() => calibrateIrtDlg.GraphIrts(), false, dlg =>
+            RunDlg<GraphRegression>(() => calibrateIrtDlg.GraphIrts(), dlg =>
             {
                 Assert.AreEqual(1, dlg.RegressionGraphDatas.Count);
                 Assert.AreEqual(10, dlg.RegressionGraphDatas.First().RegularPoints.Count);
                 dlg.CloseDialog();
             });
             RunUI(() => calibrateIrtDlg.SelectedRegressionOption = calibrateIrtDlg.RegressionOptions.First(opt => opt.Name.Equals(IrtStandard.PIERCE.Name)));
-            RunDlg<AddIrtStandardsDlg>(() => calibrateIrtDlg.UseResults(), false, dlg =>
+            RunDlg<AddIrtStandardsDlg>(() => calibrateIrtDlg.UseResults(), dlg =>
             {
                 dlg.StandardCount = 10;
                 dlg.OkDialog();
@@ -833,7 +808,7 @@ namespace pwiz.SkylineTestFunctional
             var irtDb = IrtDb.GetIrtDb(calcPath, null);
             Assert.IsFalse(string.IsNullOrEmpty(irtDb.DocumentXml));
             // Set RT regression to None
-            RunDlg<PeptideSettingsUI>(() => SkylineWindow.ShowPeptideSettingsUI(), true, dlg =>
+            RunDlg<PeptideSettingsUI>(() => SkylineWindow.ShowPeptideSettingsUI(), dlg =>
             {
                 dlg.ChooseRegression(Resources.SettingsList_ELEMENT_NONE_None);
                 dlg.OkDialog();
@@ -880,11 +855,11 @@ namespace pwiz.SkylineTestFunctional
                 Assert.AreEqual(10, calibrateIrtDlg2.StandardPeptideCount);
                 foreach (var pep in calibrateIrtDlg2.StandardPeptideList)
                 {
-                    Assert.IsTrue(predefinedIrts.ContainsKey(pep.Target));
+                    Assert.IsTrue(predefinedIrts.ContainsKey(pep.Target), $@"calibrateIrtDlg2.StandardPeptideList entry ""{pep.Target}"" not found in predefinedIrts");
                     Assert.AreEqual(predefinedIrts[pep.Target], pep.Irt);
                 }
             });
-            RunDlg<GraphRegression>(() => calibrateIrtDlg2.GraphRegression(), false, dlg =>
+            RunDlg<GraphRegression>(() => calibrateIrtDlg2.GraphRegression(), dlg =>
             {
                 Assert.AreEqual(1, dlg.RegressionGraphDatas.Count);
                 var data = dlg.RegressionGraphDatas.First();
@@ -894,7 +869,7 @@ namespace pwiz.SkylineTestFunctional
                 Assert.IsTrue(data.R >= RCalcIrt.MIN_IRT_TO_TIME_CORRELATION);
                 dlg.CloseDialog();
             });
-            RunDlg<GraphRegression>(() => calibrateIrtDlg2.GraphIrts(), false, dlg =>
+            RunDlg<GraphRegression>(() => calibrateIrtDlg2.GraphIrts(), dlg =>
             {
                 Assert.AreEqual(1, dlg.RegressionGraphDatas.Count);
                 Assert.AreEqual(10, dlg.RegressionGraphDatas.First().RegularPoints.Count);
@@ -937,7 +912,7 @@ namespace pwiz.SkylineTestFunctional
                     Assert.AreEqual(expectedIrt, pep.Irt);
                 }
             });
-            RunDlg<GraphRegression>(() => calibrateIrtDlg3.GraphRegression(), false, dlg =>
+            RunDlg<GraphRegression>(() => calibrateIrtDlg3.GraphRegression(), dlg =>
             {
                 Assert.AreEqual(1, dlg.RegressionGraphDatas.Count);
                 var data = dlg.RegressionGraphDatas.First();
@@ -947,7 +922,7 @@ namespace pwiz.SkylineTestFunctional
                 Assert.IsTrue(data.R >= RCalcIrt.MIN_IRT_TO_TIME_CORRELATION);
                 dlg.CloseDialog();
             });
-            RunDlg<GraphRegression>(() => calibrateIrtDlg3.GraphIrts(), false, dlg =>
+            RunDlg<GraphRegression>(() => calibrateIrtDlg3.GraphIrts(), dlg =>
             {
                 Assert.AreEqual(1, dlg.RegressionGraphDatas.Count);
                 Assert.AreEqual(10, dlg.RegressionGraphDatas.First().RegularPoints.Count);
@@ -965,74 +940,6 @@ namespace pwiz.SkylineTestFunctional
             });
             OkDialog(editIrtCalcDlg2, editIrtCalcDlg2.CancelDialog);
             OkDialog(peptideSettingsDlg3, peptideSettingsDlg3.CancelDialog);
-        }
-
-        private void RunRemoveDuplicatesTest()
-        {
-            var testFilesDir = new TestFilesDir(TestContext, TestFilesZip);
-            var dbPath = testFilesDir.GetTestPath("MPDS_1_Peptides.irtdb");
-            var dbBytes = File.ReadAllBytes(dbPath);
-
-            const int numStandards = 19;
-            const int numLibrary = 127;
-            const int numOverlap = 18;
-
-            void CheckIrtDbFile(bool expectDuplicates, out DbIrtPeptide[] arrStandards, out DbIrtPeptide[] arrLibrary, out Target[] arrOverlap)
-            {
-                IrtDb.GetIrtDb(dbPath, null, out var dbPeptides);
-                arrStandards = dbPeptides.Where(pep => pep.Standard).ToArray();
-                arrLibrary = dbPeptides.Where(pep => !pep.Standard).ToArray();
-                arrOverlap = arrStandards.Select(pep => pep.ModifiedTarget).Intersect(arrLibrary.Select(pep => pep.ModifiedTarget)).ToArray();
-                Assert.AreEqual(numStandards, arrStandards.Length);
-                Assert.AreEqual(expectDuplicates ? numLibrary : numLibrary - numOverlap, arrLibrary.Length);
-                Assert.AreEqual(expectDuplicates ? numOverlap : 0, arrOverlap.Length);
-            }
-            
-            CheckIrtDbFile(true, out var standards, out var library, out var overlap);
-
-            const string calcName = "Duplicate test";
-
-            var peptideSettings = ShowDialog<PeptideSettingsUI>(SkylineWindow.ShowPeptideSettingsUI);
-            var editCalcDlg = ShowDialog<EditIrtCalcDlg>(peptideSettings.EditCalculator);
-            RunUI(() =>
-            {
-                editCalcDlg.CalcName = calcName;
-                editCalcDlg.OpenDatabase(dbPath);
-                // Check that the duplicates were removed from the list of library peptides
-                Assert.AreEqual(numStandards, editCalcDlg.StandardPeptideCount);
-                Assert.AreEqual(numLibrary - numOverlap, editCalcDlg.LibraryPeptideCount);
-                // Reset lists to original values (i.e. containing duplicates)
-                editCalcDlg.StandardPeptides = standards;
-                editCalcDlg.LibraryPeptides = library;
-                Assert.AreEqual(numStandards, editCalcDlg.StandardPeptideCount);
-                Assert.AreEqual(numLibrary, editCalcDlg.LibraryPeptideCount);
-            });
-            OkDialog(editCalcDlg, editCalcDlg.OkDialog);
-
-            // Check that the database got saved without duplicates
-            CheckIrtDbFile(false, out _, out _, out _);
-
-            // Add RT predictor with the new calculator
-            var rtPredictorDlg = ShowDialog<EditRTDlg>(peptideSettings.AddRTRegression);
-            rtPredictorDlg.ChooseCalculator(calcName);
-            OkDialog(rtPredictorDlg, rtPredictorDlg.OkDialog);
-            OkDialog(peptideSettings, peptideSettings.OkDialog);
-
-            var docPath = testFilesDir.GetTestPath("duplicate-test.sky");
-            RunUI(() =>
-            {
-                SkylineWindow.SaveDocument(docPath);
-                SkylineWindow.NewDocument();
-            });
-
-            // Reset irtdb file to contain duplicates
-            File.WriteAllBytes(dbPath, dbBytes);
-            CheckIrtDbFile(true, out _, out _, out _);
-
-            // Open file and check that the duplicates get removed
-            RunUI(() => SkylineWindow.OpenFile(docPath));
-            WaitForDocumentLoaded();
-            CheckIrtDbFile(false, out _, out _, out _);
         }
 
         private SrmDocument VerifyIrtStandards(SrmDocument docBefore, bool expectStandards)
@@ -1057,12 +964,12 @@ namespace pwiz.SkylineTestFunctional
             return doc;
         }
 
-        private static string BuildStandardText(IEnumerable<MeasuredPeptide> standard, Func<string, string> adjustSeq)
+        private static string BuildStandardText(IEnumerable<MeasuredPeptide> standard, Func<string, string> adjustSeq = null)
         {
             var standardBuilder = new StringBuilder();
             foreach (var peptide in standard)
             {
-                standardBuilder.Append(adjustSeq(peptide.Sequence))
+                standardBuilder.Append(adjustSeq != null ? adjustSeq(peptide.Sequence) : peptide.Sequence)
                     .Append('\t')
                     .Append(peptide.RetentionTime)
                     .AppendLine();
@@ -1106,8 +1013,7 @@ namespace pwiz.SkylineTestFunctional
                 OkDialog(recalibrateDlg, recalibrateDlg.Btn1Click);
             }
 
-            RunUI(dlg.OkDialog);
-            WaitForClosedForm(dlg);
+            OkDialog(dlg, dlg.OkDialog);
         }
     }
 
@@ -1124,11 +1030,10 @@ namespace pwiz.SkylineTestFunctional
         {
             var peptideSettings = ShowDialog<PeptideSettingsUI>(SkylineWindow.ShowPeptideSettingsUI);
             var irtCalc = ShowDialog<EditIrtCalcDlg>(peptideSettings.AddCalculator);
-            var testDir = TestContext.TestDir;
             RunUI(() =>
             {
                 irtCalc.CalcName = "Biognosys-10";
-                irtCalc.CreateDatabase(Path.Combine(testDir, "test.irtdb"));
+                irtCalc.CreateDatabase(TestContext.GetTestResultsPath("test.irtdb"));
 
             });
             // Test choosing an iRT standard with many rows before switching to a standard with fewer rows
@@ -1148,7 +1053,7 @@ namespace pwiz.SkylineTestFunctional
             var addPeptides = ShowDialog<AddIrtStandardsToDocumentDlg>(peptideSettings.OkDialog);
             RunUI(() => addPeptides.NumTransitions = 3);
             OkDialog(addPeptides, addPeptides.BtnYesClick);
-            RunUI(() => SkylineWindow.SaveDocument(Path.Combine(testDir, "test.sky")));
+            RunUI(() => SkylineWindow.SaveDocument(TestContext.GetTestResultsPath("test.sky")));
             
             // Test opening ImportResultsDlg with all 10 iRT standard peptides in the document
             removePeptidesAndImport(IrtStandard.BIOGNOSYS_10, 0);
@@ -1231,6 +1136,302 @@ namespace pwiz.SkylineTestFunctional
                 });
                 OkDialog(errorDlg, errorDlg.OkDialog);
             }
+        }
+    }
+
+    [TestClass]
+    public class IrtRemoveDuplicatesTest : AbstractFunctionalTestEx
+    {
+        [TestMethod]
+        public void IrtRemoveDuplicatesFunctionalTest()
+        {
+            TestFilesZip = @"TestFunctional\IrtTest.zip";
+            RunFunctionalTest();
+        }
+
+        protected override void DoTest()
+        {
+            var testFilesDir = new TestFilesDir(TestContext, TestFilesZip);
+            var dbPath = testFilesDir.GetTestPath("MPDS_1_Peptides.irtdb");
+            var dbBytes = File.ReadAllBytes(dbPath);
+
+            const int numStandards = 19;
+            const int numLibrary = 127;
+            const int numOverlap = 18;
+
+            void CheckIrtDbFile(bool expectDuplicates, out DbIrtPeptide[] arrStandards, out DbIrtPeptide[] arrLibrary, out Target[] arrOverlap)
+            {
+                IrtDb.GetIrtDb(dbPath, null, out var dbPeptides);
+                arrStandards = dbPeptides.Where(pep => pep.Standard).ToArray();
+                arrLibrary = dbPeptides.Where(pep => !pep.Standard).ToArray();
+                arrOverlap = arrStandards.Select(pep => pep.ModifiedTarget).Intersect(arrLibrary.Select(pep => pep.ModifiedTarget)).ToArray();
+                Assert.AreEqual(numStandards, arrStandards.Length);
+                Assert.AreEqual(expectDuplicates ? numLibrary : numLibrary - numOverlap, arrLibrary.Length);
+                Assert.AreEqual(expectDuplicates ? numOverlap : 0, arrOverlap.Length);
+            }
+
+            CheckIrtDbFile(true, out var standards, out var library, out var overlap);
+
+            const string calcName = "Duplicate test";
+
+            var peptideSettings = ShowDialog<PeptideSettingsUI>(SkylineWindow.ShowPeptideSettingsUI);
+            RunDlg<EditIrtCalcDlg>(peptideSettings.EditCalculator, dlg =>
+            {
+                dlg.CalcName = calcName;
+                dlg.OpenDatabase(dbPath);
+                // Check that the duplicates were removed from the list of library peptides
+                Assert.AreEqual(numStandards, dlg.StandardPeptideCount);
+                Assert.AreEqual(numLibrary - numOverlap, dlg.LibraryPeptideCount);
+                // Reset lists to original values (i.e. containing duplicates)
+                dlg.StandardPeptides = standards;
+                dlg.LibraryPeptides = library;
+                Assert.AreEqual(numStandards, dlg.StandardPeptideCount);
+                Assert.AreEqual(numLibrary, dlg.LibraryPeptideCount);
+                dlg.OkDialog();
+            });
+
+            // Check that the database got saved without duplicates
+            CheckIrtDbFile(false, out _, out _, out _);
+
+            // Add RT predictor with the new calculator
+            RunDlg<EditRTDlg>(peptideSettings.AddRTRegression, dlg =>
+            {
+                dlg.ChooseCalculator(calcName);
+                dlg.OkDialog();
+            });
+            RunDlg<AddIrtStandardsToDocumentDlg>(peptideSettings.OkDialog, dlg => dlg.BtnNoClick());
+
+            var docPath = testFilesDir.GetTestPath("duplicate-test.sky");
+            RunUI(() =>
+            {
+                SkylineWindow.SaveDocument(docPath);
+                SkylineWindow.NewDocument();
+            });
+
+            // Reset irtdb file to contain duplicates
+            Helpers.TryTwice(() => File.WriteAllBytes(dbPath, dbBytes));
+            CheckIrtDbFile(true, out _, out _, out _);
+
+            // Open file and check that the duplicates get removed
+            RunUI(() => SkylineWindow.OpenFile(docPath));
+            WaitForDocumentLoaded();
+            CheckIrtDbFile(false, out _, out _, out _);
+        }
+    }
+
+    [TestClass]
+    public class IrtRedundantDbTest : AbstractFunctionalTestEx
+    {
+        [TestMethod]
+        public void IrtRedundantDbFunctionalTest()
+        {
+            TestFilesZip = @"TestFunctional\IrtTest.zip";
+            RunFunctionalTest();
+        }
+
+        private const string CALC_NAME = "History test";
+        private string _dbPath;
+        private readonly IList<DbIrtPeptide> _standards = IrtStandard.BIOGNOSYS_10.Peptides;
+        private bool _redundant;
+        private readonly Dictionary<string, List<double>> _peps = new Dictionary<string, List<double>>();
+
+        protected override void DoTest()
+        {
+            var testFilesDir = new TestFilesDir(TestContext, TestFilesZip);
+            _dbPath = testFilesDir.GetTestPath("history-test.irtdb");
+
+            // Create initial calculator
+            var peptideSettings = ShowDialog<PeptideSettingsUI>(SkylineWindow.ShowPeptideSettingsUI);
+            RunDlg<EditIrtCalcDlg>(peptideSettings.EditCalculator, dlg =>
+            {
+                dlg.CalcName = CALC_NAME;
+                dlg.CreateDatabase(_dbPath);
+                dlg.StandardPeptides = _standards;
+                CheckIrtCalcDlg(dlg);
+                ChangeRedundant(dlg, true);
+                AddIrt(dlg, "P", -100);
+                AddIrt(dlg, "PE", -50);
+                AddIrt(dlg, "PEP", -25);
+                AddIrt(dlg, "PEPT", 0);
+                AddIrt(dlg, "PEPTI", 25);
+                AddIrt(dlg, "PEPTID", 50);
+                AddIrt(dlg, "PEPTIDE", 100);
+                dlg.OkDialog();
+            });
+            CheckIrtDbFile();
+
+            // Add RT predictor with the new calculator
+            RunDlg<EditRTDlg>(peptideSettings.AddRTRegression, dlg =>
+            {
+                dlg.ChooseCalculator(CALC_NAME);
+                dlg.OkDialog();
+            });
+
+            // Change some iRT values and check database
+            RunDlg<EditIrtCalcDlg>(peptideSettings.EditCalculator, dlg =>
+            {
+                CheckIrtCalcDlg(dlg);
+                AddIrt(dlg, "PEPTIDEP", 30);
+                AddIrt(dlg, "PEPTIDEPE", 35);
+                AddIrt(dlg, "PEPTIDEPEP", 40);
+                EditIrt(dlg, "PE", -75);
+                EditIrt(dlg, "PEPTID", 75);
+                DeleteIrt(dlg, "P");
+                dlg.OkDialog();
+            });
+            CheckIrtDbFile();
+
+            // Change some more iRT values and check database
+            RunDlg<EditIrtCalcDlg>(peptideSettings.EditCalculator, dlg =>
+            {
+                CheckIrtCalcDlg(dlg);
+                EditIrt(dlg, "PE", -150);
+                EditIrt(dlg, "PEP", -10);
+                EditIrt(dlg, "PEPTI", 10);
+                EditIrt(dlg, "PEPTIDEPE", 38);
+                DeleteIrt(dlg, "PEPTID");
+                dlg.OkDialog();
+            });
+            CheckIrtDbFile();
+
+            // Set database to non-redundant
+            RunDlg<EditIrtCalcDlg>(peptideSettings.EditCalculator, dlg =>
+            {
+                CheckIrtCalcDlg(dlg);
+                ChangeRedundant(dlg, false);
+                dlg.OkDialog();
+            });
+            CheckIrtDbFile();
+
+            RunDlg<AddIrtStandardsToDocumentDlg>(peptideSettings.OkDialog, dlg => dlg.BtnNoClick());
+
+            RunUI(() => SkylineWindow.SaveDocument(testFilesDir.GetTestPath("history-test.sky")));
+        }
+
+        private double GetMedianIrt(string target)
+        {
+            Assert.IsTrue(_peps.TryGetValue(target, out var irts),
+                $"Missing peptide {target} from [{string.Join(", ", _peps.Keys)}]");
+            return new Statistics(irts).Median();
+        }
+
+        private void ChangeRedundant(EditIrtCalcDlg dlg, bool redundant)
+        {
+            dlg.IsRedundant = _redundant = redundant;
+            if (!redundant)
+            {
+                var dlgPeps = dlg.LibraryPeptides.ToDictionary(pep => pep.ModifiedTarget.ToString());
+                foreach (var pep in _peps)
+                {
+                    Assert.IsTrue(dlgPeps.ContainsKey(pep.Key));
+                    pep.Value.Clear();
+                    pep.Value.Add(dlgPeps[pep.Key].Irt);
+                }
+            }
+        }
+
+        private void AddIrt(EditIrtCalcDlg dlg, string target, double irt)
+        {
+            var dlgPeps = dlg.LibraryPeptides.ToList();
+            Assert.IsNull(dlgPeps.FirstOrDefault(pep => Equals(pep.ModifiedTarget.ToString(), target)));
+            var newPep = new DbIrtPeptide(new Target(target), irt, false, TimeSource.peak);
+            _peps.Add(target, new List<double> { irt });
+            dlg.LibraryPeptides = dlgPeps.Append(newPep);
+        }
+
+        private void EditIrt(EditIrtCalcDlg dlg, string target, double irt)
+        {
+            var dlgPepIdx = dlg.LibraryPeptides.ToArray().IndexOf(pep => Equals(pep.ModifiedTarget.ToString(), target));
+            Assert.AreNotEqual(-1, dlgPepIdx);
+            dlg.AddLibraryIrt(dlgPepIdx, irt);
+            Assert.IsTrue(_peps.TryGetValue(target, out var histories));
+            histories.Add(irt);
+            Assert.AreEqual(GetMedianIrt(target), dlg.LibraryPeptides.Skip(dlgPepIdx).First().Irt);
+        }
+
+        private void DeleteIrt(EditIrtCalcDlg dlg, string target)
+        {
+            Assert.IsTrue(_peps.Remove(target));
+            var dlgPeps = dlg.LibraryPeptides.ToList();
+            var i = dlgPeps.IndexOf(pep => Equals(pep.ModifiedTarget.ToString(), target));
+            Assert.AreNotEqual(-1, i);
+            dlgPeps.RemoveAt(i);
+            dlg.LibraryPeptides = dlgPeps;
+        }
+
+        private void CheckIrtCalcDlg(EditIrtCalcDlg dlg)
+        {
+            Assert.AreEqual(CALC_NAME, dlg.CalcName);
+            Assert.AreEqual(_dbPath, dlg.CalcPath);
+            Assert.AreEqual(dlg.SelectedRegressionType, IrtRegressionType.DEFAULT);
+            Assert.AreEqual(_redundant, dlg.IsRedundant);
+
+            Assert.AreEqual(_standards.Count, dlg.StandardPeptideCount);
+            foreach (var pep in dlg.StandardPeptides.Select((dlgPep, i) =>
+                         new KeyValuePair<int, DbIrtPeptide>(i, dlgPep)))
+            {
+                Assert.AreEqual(_standards[pep.Key].PeptideModSeq, pep.Value.PeptideModSeq);
+                Assert.AreEqual(_standards[pep.Key].Irt, pep.Value.Irt);
+            }
+
+            var dlgPeps = dlg.LibraryPeptides.ToDictionary(pep => pep.PeptideModSeq, pep => pep);
+            Assert.AreEqual(_peps.Count, dlg.LibraryPeptideCount);
+            foreach (var pep in _peps)
+            {
+                Assert.IsTrue(dlgPeps.TryGetValue(pep.Key, out var dlgPep));
+                var expectedIrt = GetMedianIrt(pep.Key);
+                Assert.AreEqual(expectedIrt, dlgPep.Irt,
+                    $"Peptide {pep.Key} differs (iRT expected = {expectedIrt}, actual = {dlgPep.Irt})");
+            }
+        }
+
+        private void CheckIrtDbFile()
+        {
+            var db = IrtDb.GetIrtDb(_dbPath, null, out var dbPeptides);
+            Assert.AreEqual(_redundant, db.Redundant);
+
+            var dbHistories = new Dictionary<long, List<double>>();
+            foreach (var history in db.ReadHistories() ?? Enumerable.Empty<DbIrtHistory>())
+            {
+                if (!dbHistories.TryGetValue(history.PeptideId, out var list))
+                    dbHistories.Add(history.PeptideId, new List<double> { history.Irt });
+                else
+                    list.Add(history.Irt);
+            }
+
+            var expectedStandards = _standards.Select(pep => pep.ModifiedTarget).ToHashSet();
+            var expectedLibrary = _peps.ToDictionary(pep => pep.Key, pep => new List<double>(pep.Value));
+            foreach (var pep in dbPeptides)
+            {
+                if (pep.Standard)
+                {
+                    Assert.IsTrue(expectedStandards.Remove(pep.ModifiedTarget));
+                    Assert.IsFalse(dbHistories.ContainsKey(pep.Id.Value)); // standards should not have histories
+                    Assert.AreEqual(pep.Irt, db.ScoreSequence(pep.ModifiedTarget).Value);
+                    continue;
+                }
+
+                // Verify iRT value
+                Assert.AreEqual(GetMedianIrt(pep.ModifiedTarget.ToString()), pep.Irt);
+
+                // Verify history
+                if (_redundant)
+                {
+                    Assert.IsTrue(expectedLibrary.TryGetValue(pep.ModifiedTarget.ToString(), out var expectedHistory));
+                    Assert.IsTrue(dbHistories.TryGetValue(pep.Id.Value, out var dbHistory));
+                    foreach (var i in dbHistory.Select(history => expectedHistory.FindIndex(irt => Math.Abs(irt - history) < 0.01)))
+                    {
+                        Assert.AreNotEqual(-1, i);
+                        expectedHistory.RemoveAt(i);
+                    }
+                    Assert.AreEqual(new Statistics(dbHistory.Append(pep.Irt)).Median(), db.ScoreSequence(pep.ModifiedTarget));
+                    Assert.AreEqual(0, expectedHistory.Count);
+                }
+                Assert.IsTrue(expectedLibrary.Remove(pep.PeptideModSeq));
+            }
+
+            Assert.AreEqual(0, expectedStandards.Count);
+            Assert.AreEqual(0, expectedLibrary.Count);
         }
     }
 }

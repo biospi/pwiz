@@ -21,6 +21,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using pwiz.Common.Chemistry;
+using pwiz.Common.Collections;
 using pwiz.Common.DataBinding.Attributes;
 using pwiz.Skyline.Controls.SeqNode;
 using pwiz.Skyline.Model.Crosslinking;
@@ -28,7 +29,6 @@ using pwiz.Skyline.Model.Databinding.Collections;
 using pwiz.Skyline.Model.DocSettings;
 using pwiz.Skyline.Model.ElementLocators;
 using pwiz.Skyline.Model.Hibernate;
-using pwiz.Skyline.Model.Lib;
 using pwiz.Skyline.Properties;
 using pwiz.Skyline.Util;
 using pwiz.Skyline.Util.Extensions;
@@ -39,14 +39,10 @@ namespace pwiz.Skyline.Model.Databinding.Entities
     public class Precursor : SkylineDocNode<TransitionGroupDocNode>
     {
         private readonly Lazy<Peptide> _peptide;
-        private readonly CachedValue<Transition[]> _transitions;
-        private readonly CachedValue<IDictionary<ResultKey, PrecursorResult>> _results;
+        private readonly CachedValues _cachedValues = new CachedValues();
         public Precursor(SkylineDataSchema dataSchema, IdentityPath identityPath) : base(dataSchema, identityPath)
         {
             _peptide = new Lazy<Peptide>(() => new Peptide(DataSchema, IdentityPath.Parent));
-            _transitions = CachedValue.Create(dataSchema, () => DocNode.Children
-                .Select(child => new Transition(DataSchema, new IdentityPath(IdentityPath, child.Id))).ToArray());
-            _results = CachedValue.Create(dataSchema, MakeResults);
         }
 
         [HideWhen(AncestorOfType = typeof(Peptide))]
@@ -61,7 +57,7 @@ namespace pwiz.Skyline.Model.Databinding.Entities
         {
             get
             {
-                return _transitions.Value;
+                return _cachedValues.GetValue(this);
             }
         }
 
@@ -69,12 +65,7 @@ namespace pwiz.Skyline.Model.Databinding.Entities
         [OneToMany(ForeignKey = "Precursor")]
         public IDictionary<ResultKey, PrecursorResult> Results
         {
-            get { return _results.Value; }
-        }
-
-        private IDictionary<ResultKey, PrecursorResult> MakeResults()
-        {
-            return MakeChromInfoResultsMap(DocNode.Results, file => new PrecursorResult(this, file));
+            get { return _cachedValues.GetValue1(this); }
         }
 
         protected override TransitionGroupDocNode CreateEmptyNode()
@@ -145,11 +136,11 @@ namespace pwiz.Skyline.Model.Databinding.Entities
         }
 
         // Helper function for PrecursorIonFormula and PrecursorNeutralFormula
-        private void GetPrecursorFormulaAndAdduct(out Adduct adduct, out string formula)
+        private void GetPrecursorFormulaAndAdduct(out Adduct adduct, out ParsedMolecule formula)
         {
             if (IsSmallMolecule())
             {
-                formula = (DocNode.CustomMolecule.Formula ?? string.Empty);
+                formula = DocNode.CustomMolecule.ParsedMolecule;
                 adduct = DocNode.PrecursorAdduct;
             }
             else
@@ -157,7 +148,7 @@ namespace pwiz.Skyline.Model.Databinding.Entities
                 var crosslinkBuilder = new CrosslinkBuilder(SrmDocument.Settings, DocNode.TransitionGroup.Peptide,
                     Peptide.DocNode.ExplicitMods, DocNode.LabelType);
                 adduct = Util.Adduct.FromChargeProtonated(Charge);
-                formula = crosslinkBuilder.GetPrecursorFormula().Molecule.ToString();
+                formula = ParsedMolecule.Create(crosslinkBuilder.GetPrecursorFormula());
             }
         }
 
@@ -167,10 +158,8 @@ namespace pwiz.Skyline.Model.Databinding.Entities
             get
             {
                 // Given formula C12H8O3 and adduct M3H2+H, apply label 3H2 and ionization +H to return C12H'3H6
-                Adduct adduct;
-                string formula;
-                GetPrecursorFormulaAndAdduct(out adduct, out formula);
-                return string.IsNullOrEmpty(formula) ? string.Empty : adduct.ApplyToFormula(formula);
+                GetPrecursorFormulaAndAdduct(out var adduct, out var formula);
+                return ParsedMolecule.IsNullOrEmpty(formula) ? string.Empty : adduct.ApplyToMolecule(formula).ToString();
             }
         }
 
@@ -180,10 +169,9 @@ namespace pwiz.Skyline.Model.Databinding.Entities
             get
             {
                 // Given formula C12H8O3 and adduct M3H2+H, apply label 3H2 but not ionization +H to return C12H'3H5
-                Adduct adduct;
-                string formula;
-                GetPrecursorFormulaAndAdduct(out adduct, out formula);
-                return string.IsNullOrEmpty(formula) ? string.Empty : adduct.ApplyIsotopeLabelsToFormula(formula);
+                // Given formula C12H8O3 and adduct M(-0.234)+H, apply mass-only label (-0.234) but not ionization +H to return C12H8O3[-0.234]
+                GetPrecursorFormulaAndAdduct(out var adduct, out var formula);
+                return ParsedMolecule.IsNullOrEmpty(formula) ? string.Empty : adduct.ApplyIsotopeLabelsToMolecule(formula).ToString();
             }
         }
 
@@ -428,6 +416,8 @@ namespace pwiz.Skyline.Model.Databinding.Entities
             }
         }
 
+        public string SpectrumFilter { get { return DocNode.SpectrumClassFilter.ToString(); } }
+
         [InvariantDisplayName("PrecursorNote")]
         [Importable]
         public string Note
@@ -448,28 +438,13 @@ namespace pwiz.Skyline.Model.Databinding.Entities
 
         public string LibraryType
         {
-            get
-            {
-                if (DocNode.LibInfo is NistSpectrumHeaderInfo)
-                {
-                    return @"NIST";
-                }
-                if (DocNode.LibInfo is XHunterSpectrumHeaderInfo)
-                {
-                    return @"GPM";
-                }
-                if (DocNode.LibInfo is BiblioSpecSpectrumHeaderInfo)
-                {
-                    return @"BiblioSpec";
-                }
-                return null;
-            }
+            get { return DocNode.LibInfo?.LibraryTypeName; }
         }
 
         [Format(NullValue = TextUtil.EXCEL_NA)]
         public double? LibraryProbabilityScore
         {
-            get { return (DocNode.LibInfo as BiblioSpecSpectrumHeaderInfo)?.Score; }
+            get { return DocNode.LibInfo?.Score; }
         }
 
         [Format(NullValue = TextUtil.EXCEL_NA)]
@@ -581,16 +556,33 @@ namespace pwiz.Skyline.Model.Databinding.Entities
         {
             get { return typeof(Precursor); }
         }
+
+        private class CachedValues : CachedValues<Precursor, ImmutableList<Transition>, IDictionary<ResultKey, PrecursorResult>> 
+        {
+            protected override SrmDocument GetDocument(Precursor owner)
+            {
+                return owner.SrmDocument;
+            }
+
+            protected override ImmutableList<Transition> CalculateValue(Precursor owner)
+            {
+                return ImmutableList.ValueOf(owner.DocNode.Children
+                    .Select(child => new Transition(owner.DataSchema, new IdentityPath(owner.IdentityPath, child.Id))));
+            }
+
+            protected override IDictionary<ResultKey, PrecursorResult> CalculateValue1(Precursor owner)
+            {
+                return owner.MakeChromInfoResultsMap(owner.DocNode.Results, file => new PrecursorResult(owner, file));
+            }
+        }
     }
 
     public class PrecursorResultSummary : SkylineObject
     {
+        private readonly Precursor _precursor;
         public PrecursorResultSummary(Precursor precursor, IEnumerable<PrecursorResult> results)
-            : base(precursor.DataSchema)
         {
-#pragma warning disable 612
-            Precursor = precursor;
-#pragma warning restore 612
+            _precursor = precursor;
             var bestRetentionTimes = new List<double>();
             var maxFhwms = new List<double>();
             var totalAreas = new List<double>();
@@ -658,9 +650,17 @@ namespace pwiz.Skyline.Model.Databinding.Entities
                 MaxHeight = new AreaSummary(new Statistics(maxHeights));
             }
         }
+        protected override SkylineDataSchema GetDataSchema()
+        {
+            return _precursor.DataSchema;
+        }
 
         [Obsolete]
-        public Precursor Precursor { get; private set; }
+        public Precursor Precursor
+        {
+            get { return _precursor; }
+        }
+
         [Obsolete]
         public string ReplicatePath { get { return @"/"; } }
         [ChildDisplayName("{0}BestRetentionTime")]

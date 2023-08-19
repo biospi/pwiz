@@ -225,7 +225,7 @@
   <data name="TransitionFilter_EndFragmentFinderLabel" xml:space="preserve">
     <value>子离子选择结束</value>
   </data>
-  <data name="TransitionLibraries_IonMatchTolerance" xml:space="preserve">
+  <data name="TransitionLibraries_IonMatchMzTolerance" xml:space="preserve">
     <value>离子匹配耐受性</value>
   </data>
   <data name="TransitionInstrument_IsDynamicMin" xml:space="preserve">
@@ -1205,7 +1205,7 @@
   <data name="TransitionFilterAndLibrariesSettings_IonCount" xml:space="preserve">
     <value>挑选子离子</value>
   </data>
-  <data name="TransitionFilterAndLibrariesSettings_IonMatchTolerance" xml:space="preserve">
+  <data name="TransitionFilterAndLibrariesSettings_IonMatchMzTolerance" xml:space="preserve">
     <value>离子匹配耐受性</value>
   </data>
   <data name="TransitionFilterAndLibrariesSettings_MinIonCount" xml:space="preserve">
@@ -1360,6 +1360,9 @@
   </data>
   <data name="AssociateProteinsSettings_Proteins" xml:space="preserve">
     <value>蛋白质</value>
+  </data>
+  <data name="ParsimonySettings_FindMinimalProteinList" xml:space="preserve">
+    <value>查找最小蛋白质列表</value>
   </data>
   <data name="ChooseSchedulingReplicatesSettings" xml:space="preserve">
     <value>选择预测保留时间的重复测定</value>
@@ -1654,5 +1657,56 @@
   </data>
   <data name="DdaSearchSettings_SearchEngine" xml:space="preserve">
     <value>搜索引擎</value>
+  </data>
+  <data name="File_FileName" xml:space="preserve">
+    <value>文件</value>
+  </data>
+  <data name="File_ScoreTypeName" xml:space="preserve">
+    <value>得分类型</value>
+  </data>
+  <data name="File_ScoreThreshold" xml:space="preserve">
+    <value>得分阈值</value>
+  </data>
+  <data name="TransitionFullScan_IgnoreSimScans" xml:space="preserve">
+    <value>忽略 SIM 扫描</value>
+  </data>
+  <data name="AssociateProteinsSettings_MappedPeptides" xml:space="preserve">
+    <value>映射的肽段</value>
+  </data>
+  <data name="AssociateProteinsSettings_MappedProteins" xml:space="preserve">
+    <value>映射的蛋白质</value>
+  </data>
+  <data name="ParsimonySettings_SharedPeptides" xml:space="preserve">
+    <value>共享的肽段选项</value>
+  </data>
+  <data name="AssociateProteinsSettings_TargetPeptides" xml:space="preserve">
+    <value>肽段目标</value>
+  </data>
+  <data name="AssociateProteinsSettings_TargetProteins" xml:space="preserve">
+    <value>蛋白质目标</value>
+  </data>
+  <data name="AssociateProteinsSettings_UnmappedPeptides" xml:space="preserve">
+    <value>取消映射的肽段</value>
+  </data>
+  <data name="AssociateProteinsSettings_UnmappedProteins" xml:space="preserve">
+    <value>取消映射的蛋白质</value>
+  </data>
+  <data name="ParsimonySettings_GroupProteins" xml:space="preserve">
+    <value>蛋白质分组</value>
+  </data>
+  <data name="AssociateProteinsSettings_TargetProteinGroups" xml:space="preserve">
+    <value>蛋白质组目标</value>
+  </data>
+  <data name="ParsimonySettings_MinPeptidesPerProtein" xml:space="preserve">
+    <value>每个蛋白质的最少肽段数</value>
+  </data>
+  <data name="ParsimonySettings_RemoveSubsetProteins" xml:space="preserve">
+    <value>删除蛋白质子集</value>
+  </data>
+  <data name="ImportPeptideSearchSettings_AssociateProteinsSettings" xml:space="preserve">
+    <value>关联蛋白质</value>
+  </data>
+  <data name="PeptideSettings_ProteinAssociationSettings" xml:space="preserve">
+    <value>蛋白质关联设置</value>
   </data>
 </root>

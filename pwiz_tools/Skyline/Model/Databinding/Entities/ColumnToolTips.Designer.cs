@@ -134,6 +134,16 @@ namespace pwiz.Skyline.Model.Databinding.Entities {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to The type of analyzer that was used to collect the spectrum.
+        ///If more than one analyzer was used, the names of the analyzers will be separated by slashes..
+        /// </summary>
+        public static string Analyzer {
+            get {
+                return ResourceManager.GetString("Analyzer", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Area under the curve (AUC), minus background, for the transition peak..
         /// </summary>
         public static string Area {
@@ -414,6 +424,15 @@ namespace pwiz.Skyline.Model.Databinding.Entities {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Last retention time in the chromatogram.
+        /// </summary>
+        public static string ChromatogramEndTime {
+            get {
+                return ResourceManager.GetString("ChromatogramEndTime", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Full width of the channel over which the spectrum intensities were summed.
         /// </summary>
         public static string ChromatogramExtractionWidth {
@@ -477,6 +496,15 @@ namespace pwiz.Skyline.Model.Databinding.Entities {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to First retention time in the chromatogram.
+        /// </summary>
+        public static string ChromatogramStartTime {
+            get {
+                return ResourceManager.GetString("ChromatogramStartTime", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Specific amino acid residue in the peptide after (C-terminal of) which the
         ///peptide was cleaved upon fragmentation. (e.g. P, M, S, T, etc.).
         /// </summary>
@@ -520,6 +548,15 @@ namespace pwiz.Skyline.Model.Databinding.Entities {
         public static string CollisionEnergy {
             get {
                 return ResourceManager.GetString("CollisionEnergy", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to The voltage that was applied when the FAIMS spectrum was collected.
+        /// </summary>
+        public static string CompensationVoltage {
+            get {
+                return ResourceManager.GetString("CompensationVoltage", resourceCulture);
             }
         }
         
@@ -1394,6 +1431,15 @@ namespace pwiz.Skyline.Model.Databinding.Entities {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to A measure of the &quot;tailedness&quot; of the chromatogram peak..
+        /// </summary>
+        public static string Kurtosis {
+            get {
+                return ResourceManager.GetString("Kurtosis", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to The position of the last (C-terminal) amino acid of the peptide within its
         ///containing protein sequence, or #N/A if no protein sequence is available.
         /// </summary>
@@ -1626,6 +1672,15 @@ namespace pwiz.Skyline.Model.Databinding.Entities {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to The subset of the selected precursors whose precursor m/z matches any of the spectra represented by the row in the Spectrum Grid..
+        /// </summary>
+        public static string MatchingPrecursors {
+            get {
+                return ResourceManager.GetString("MatchingPrecursors", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Max.
         /// </summary>
         public static string Max {
@@ -1823,6 +1878,18 @@ namespace pwiz.Skyline.Model.Databinding.Entities {
         public static string MedianDetectionQValue {
             get {
                 return ResourceManager.GetString("MedianDetectionQValue", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to The median transition peak area of transition results in the particular result file.
+        ///This median peak area is used when the normalization method is &quot;Equalize Medians&quot;.
+        ///If there is an internal standard label type, then the median peak area is calculated using only the peak areas from transitions whose precursor&apos;s label type is an internal standard.
+        ///If there are no internal standard peak areas, then the median transition peak area is calculated from all transition peak areas..
+        /// </summary>
+        public static string MedianPeakArea {
+            get {
+                return ResourceManager.GetString("MedianPeakArea", resourceCulture);
             }
         }
         
@@ -2156,6 +2223,24 @@ namespace pwiz.Skyline.Model.Databinding.Entities {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to The m/z values of the precursors that were isolated.
+        /// </summary>
+        public static string Ms1Precursors {
+            get {
+                return ResourceManager.GetString("Ms1Precursors", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to For spectra that are MS Level 3 or higher, the m/z values of the precursors that were isolated after the first level of precursors were fragmented.
+        /// </summary>
+        public static string Ms2Precursors {
+            get {
+                return ResourceManager.GetString("Ms2Precursors", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Indicates whether the result was obtained using only precursor intensities (MS Level 1) or product intensities (MS Level 2)..
         /// </summary>
         public static string MsLevel {
@@ -2170,6 +2255,16 @@ namespace pwiz.Skyline.Model.Databinding.Entities {
         public static string NextAa {
             get {
                 return ResourceManager.GetString("NextAa", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Number which observed values are divided by when using the default normalization method.
+        ///The default normalization method is specified on the Quantification tab of the Peptide or Molecule settings dialog..
+        /// </summary>
+        public static string NormalizationDivisor {
+            get {
+                return ResourceManager.GetString("NormalizationDivisor", resourceCulture);
             }
         }
         
@@ -2302,6 +2397,15 @@ namespace pwiz.Skyline.Model.Databinding.Entities {
         public static string PeakScores {
             get {
                 return ResourceManager.GetString("PeakScores", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to The standard deviation of the chromatographic peak..
+        /// </summary>
+        public static string PeakStandardDeviation {
+            get {
+                return ResourceManager.GetString("PeakStandardDeviation", resourceCulture);
             }
         }
         
@@ -2728,6 +2832,15 @@ namespace pwiz.Skyline.Model.Databinding.Entities {
         public static string PredictedRetentionTime {
             get {
                 return ResourceManager.GetString("PredictedRetentionTime", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to A number representing the settings that were applied to the spectrum.
+        /// </summary>
+        public static string PresetScanConfiguration {
+            get {
+                return ResourceManager.GetString("PresetScanConfiguration", resourceCulture);
             }
         }
         
@@ -3381,11 +3494,47 @@ namespace pwiz.Skyline.Model.Databinding.Entities {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Text description that was added to the spectrum by the instrument method.
+        /// </summary>
+        public static string ScanDescription {
+            get {
+                return ResourceManager.GetString("ScanDescription", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Difference between the upper and lower m/z values that the spectrum might have intensity values for.
+        /// </summary>
+        public static string ScanWindowWidth {
+            get {
+                return ResourceManager.GetString("ScanWindowWidth", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to The numerical value for the particular feature..
         /// </summary>
         public static string Score {
             get {
                 return ResourceManager.GetString("Score", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to The Pearson correlation of this transition&apos;s chromatographic peak compared to the median peak shape of all of the transitions under the same precursor..
+        /// </summary>
+        public static string ShapeCorrelation {
+            get {
+                return ResourceManager.GetString("ShapeCorrelation", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to A measure of the asymmetry of the chromatogram peak..
+        /// </summary>
+        public static string Skewness {
+            get {
+                return ResourceManager.GetString("Skewness", resourceCulture);
             }
         }
         
@@ -3413,6 +3562,15 @@ namespace pwiz.Skyline.Model.Databinding.Entities {
         public static string SMILES {
             get {
                 return ResourceManager.GetString("SMILES", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Extra criteria that spectra must pass to be included in the extracted ion chromatogram.
+        /// </summary>
+        public static string SpectrumFilter {
+            get {
+                return ResourceManager.GetString("SpectrumFilter", resourceCulture);
             }
         }
         

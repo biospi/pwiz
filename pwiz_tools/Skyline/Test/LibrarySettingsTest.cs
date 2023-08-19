@@ -21,6 +21,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
+using pwiz.Common.Chemistry;
 using pwiz.Skyline.Model;
 using pwiz.Skyline.Model.DocSettings;
 using pwiz.Skyline.Model.DocSettings.Extensions;
@@ -276,14 +277,14 @@ namespace pwiz.SkylineTest
 
             // Test tolerance range
             SrmSettings settings = docLoaded.Settings.ChangeTransitionLibraries(l =>
-                l.ChangeIonMatchTolerance(TransitionLibraries.MIN_MATCH_TOLERANCE));
+                l.ChangeIonMatchMzTolerance(TransitionLibraries.MIN_MATCH_TOLERANCE));
             SrmDocument docLowTol = docLoaded.ChangeSettings(settings);
             // Use the original low tolerance for transition testing, since
             // the new low tolerance is for high accuracy data.
             docLowTol = docLowTol.ChangeSettings(settings.ChangeTransitionLibraries(l =>
-                l.ChangeIonMatchTolerance(0.1)));
+                l.ChangeIonMatchMzTolerance(0.1)));
             settings = docLowTol.Settings.ChangeTransitionLibraries(l =>
-                l.ChangeIonMatchTolerance(TransitionLibraries.MAX_MATCH_TOLERANCE));
+                l.ChangeIonMatchMzTolerance(TransitionLibraries.GetMaxMatchTolerance(MzTolerance.Units.mz)));
             SrmDocument docHighTol = docLoaded.ChangeSettings(settings);
 
             Assert.AreEqual(docLowTol.PeptideTransitionCount, docHighTol.PeptideTransitionCount);
@@ -303,9 +304,9 @@ namespace pwiz.SkylineTest
 
             SrmSettings setThrow = settings;
             AssertEx.ThrowsException<InvalidDataException>(() =>
-                setThrow.ChangeTransitionLibraries(l => l.ChangeIonMatchTolerance(TransitionLibraries.MAX_MATCH_TOLERANCE * 2)));
+                setThrow.ChangeTransitionLibraries(l => l.ChangeIonMatchMzTolerance(TransitionLibraries.GetMaxMatchTolerance(MzTolerance.Units.mz) * 2)));
             AssertEx.ThrowsException<InvalidDataException>(() =>
-                setThrow.ChangeTransitionLibraries(l => l.ChangeIonMatchTolerance(TransitionLibraries.MIN_MATCH_TOLERANCE / 2)));
+                setThrow.ChangeTransitionLibraries(l => l.ChangeIonMatchMzTolerance(TransitionLibraries.MIN_MATCH_TOLERANCE / 2)));
 
             // Picked transition count
             settings = docLoaded.Settings.ChangeTransitionLibraries(l => l.ChangeIonCount(5));
@@ -319,8 +320,8 @@ namespace pwiz.SkylineTest
             AssertEx.IsDocumentState(docFilteredIons, ++startRev, 2, 4, 15); // Proline ions
             Assert.IsFalse(HasMaxTransitionRank(docFilteredIons, 5));
 
-            settings = settings.ChangeTransitionFilter(f => f.ChangeFragmentRangeFirstName("ion 4")
-                .ChangeFragmentRangeLastName("last ion").ChangeMeasuredIons(new MeasuredIon[0]));
+            settings = settings.ChangeTransitionFilter(f => f.ChangeFragmentRangeFirstName(TransitionFilter.StartFragmentFinder.ION_4.Name)
+                .ChangeFragmentRangeLastName(TransitionFilter.EndFragmentFinder.LAST_ION.Name).ChangeMeasuredIons(Array.Empty<MeasuredIon>()));
             settings = settings.ChangeTransitionLibraries(l => l.ChangePick(TransitionLibraryPick.filter));
             SrmDocument docRankedFiltered = docFilteredIons.ChangeSettings(settings);
             AssertEx.IsDocumentState(docRankedFiltered, ++startRev, 2, 4, 20);

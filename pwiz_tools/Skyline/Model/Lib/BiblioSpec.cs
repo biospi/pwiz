@@ -64,6 +64,11 @@ namespace pwiz.Skyline.Model.Lib
             get { return RANK_IDS; }
         }
 
+        public override string GetLibraryTypeName()
+        {
+            return Resources.BiblioSpecLibrary_SpecFilter_Legacy_BiblioSpec_Library;
+        }
+
         #region Implementation of IXmlSerializable
         
         /// <summary>
@@ -85,17 +90,15 @@ namespace pwiz.Skyline.Model.Lib
     public sealed class BiblioSpecSpectrumHeaderInfo : SpectrumHeaderInfo
     {
         public BiblioSpecSpectrumHeaderInfo(string libraryName, int spectrumCount, double? score, string scoreType, string protein)
-            : base(libraryName)
+            : base(libraryName, score, scoreType)
         {
             SpectrumCount = spectrumCount;
-            Score = score;
-            ScoreType = scoreType;
             Protein = protein;
         }
 
+        public override string LibraryTypeName => @"BiblioSpec";
+
         public int SpectrumCount { get; private set; }
-        public double? Score { get; private set; }
-        public string ScoreType { get; private set; }
 
         public override float GetRankValue(PeptideRankId rankId)
         {
@@ -125,8 +128,6 @@ namespace pwiz.Skyline.Model.Lib
         private enum ATTR
         {
             count_measured,
-            score,
-            score_type
         }
 
         public static BiblioSpecSpectrumHeaderInfo Deserialize(XmlReader reader)
@@ -139,8 +140,6 @@ namespace pwiz.Skyline.Model.Lib
             // Read tag attributes
             base.ReadXml(reader);
             SpectrumCount = reader.GetIntAttribute(ATTR.count_measured);
-            Score = reader.GetNullableDoubleAttribute(ATTR.score);
-            ScoreType = reader.GetAttribute(ATTR.score_type);
             // Consume tag
             reader.Read();
         }
@@ -150,11 +149,6 @@ namespace pwiz.Skyline.Model.Lib
             // Write tag attributes
             base.WriteXml(writer);
             writer.WriteAttribute(ATTR.count_measured, SpectrumCount);
-            if (Score.HasValue)
-            {
-                writer.WriteAttribute(ATTR.score, Score.Value);
-                writer.WriteAttribute(ATTR.score_type, ScoreType);
-            }
         }
 
         #endregion

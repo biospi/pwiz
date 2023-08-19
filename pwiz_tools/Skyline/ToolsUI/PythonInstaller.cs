@@ -27,6 +27,7 @@ using System.Text;
 using System.Text.RegularExpressions;
 using System.Windows.Forms;
 using Microsoft.Win32;
+using pwiz.Common.SystemUtil;
 using pwiz.Skyline.Alerts;
 using pwiz.Skyline.Controls;
 using pwiz.Skyline.Model.Tools;
@@ -163,7 +164,7 @@ namespace pwiz.Skyline.ToolsUI
 
         private string DownloadPath { get; set; }
 
-        private void DownloadPython(ILongWaitBroker waitBroker)
+        private void DownloadPython(IProgressMonitor waitBroker)
         {
             // the base Url for python releases
             const string baseUri = "http://python.org/ftp/python/";
@@ -176,10 +177,10 @@ namespace pwiz.Skyline.ToolsUI
 
             using (var webClient = TestDownloadClient ?? new MultiFileAsynchronousDownloadClient(waitBroker, 1))
             {
-                if (!webClient.DownloadFileAsync(downloadUri, DownloadPath = Path.GetTempPath() + fileName))
+                if (!webClient.DownloadFileAsync(downloadUri, DownloadPath = Path.GetTempPath() + fileName, out var downloadException))
                     throw new ToolExecutionException(TextUtil.LineSeparate(
                         Resources.PythonInstaller_DownloadPython_Download_failed_, 
-                        Resources.PythonInstaller_DownloadPython_Check_your_network_connection_or_contact_the_tool_provider_for_installation_support_));
+                        Resources.PythonInstaller_DownloadPython_Check_your_network_connection_or_contact_the_tool_provider_for_installation_support_), downloadException);
             }
         }
 
@@ -291,10 +292,11 @@ namespace pwiz.Skyline.ToolsUI
             }
         }
 
-        private IEnumerable<string> DownloadPackages(ILongWaitBroker waitBroker, IEnumerable<string> packagesToDownload)
+        private IEnumerable<string> DownloadPackages(IProgressMonitor waitBroker, IEnumerable<string> packagesToDownload)
         {
             ICollection<string> downloadPaths = new Collection<string>();
             ICollection<string> failedDownloads = new Collection<string>();
+            List<Exception> downloadExceptions = new List<Exception>();
 
             using (var webClient = TestDownloadClient ?? new MultiFileAsynchronousDownloadClient(waitBroker, PackageUris.Count))
             {
@@ -302,26 +304,43 @@ namespace pwiz.Skyline.ToolsUI
                 {
                     Match file = Regex.Match(package, @"[^/]*$");
                     string downloadPath = Path.GetTempPath() + file;
-                    if (webClient.DownloadFileAsync(new Uri(package), downloadPath))
+                    if (webClient.DownloadFileAsync(new Uri(package), downloadPath, out var downloadException))
                     {
                         downloadPaths.Add(downloadPath);
                     }
                     else
                     {
                         failedDownloads.Add(package);
+                        if (downloadException != null)
+                        {
+                            downloadExceptions.Add(downloadException);
+                        }
                     }
                 }        
             }
 
             if (failedDownloads.Count != 0)
             {
+                Exception cause;
+                switch (downloadExceptions.Count)
+                {
+                    case 0:
+                        cause = null;
+                        break;
+                    case 1:
+                        cause = downloadExceptions[0];
+                        break;
+                    default:
+                        cause = new AggregateException(downloadExceptions);
+                        break;
+                }
                 throw new ToolExecutionException(
                         TextUtil.LineSeparate(
                             Resources.PythonInstaller_DownloadPackages_Failed_to_download_the_following_packages_,
                             string.Empty,
                             TextUtil.LineSeparate(failedDownloads),
                             string.Empty,
-                            Resources.PythonInstaller_DownloadPython_Check_your_network_connection_or_contact_the_tool_provider_for_installation_support_));
+                            Resources.PythonInstaller_DownloadPython_Check_your_network_connection_or_contact_the_tool_provider_for_installation_support_), cause);
             }
             return downloadPaths;
         }
@@ -405,7 +424,7 @@ namespace pwiz.Skyline.ToolsUI
         // Consider: the location of the following python links is assumed to be relatively stable, but could change. We
         // might want to package these scripts with Skyline itself to assure that they are available
 
-        private void DownloadPip(ILongWaitBroker longWaitBroker)
+        private void DownloadPip(IProgressMonitor longWaitBroker)
         {
             // location of the setuptools install script
             const string setupToolsScript = "https://bitbucket.org/pypa/setuptools/downloads/ez_setup.py";
@@ -417,10 +436,11 @@ namespace pwiz.Skyline.ToolsUI
 
             using (var webClient = TestPipDownloadClient ?? new MultiFileAsynchronousDownloadClient(longWaitBroker, 2))
             {
-                if (!webClient.DownloadFileAsync(new Uri(setupToolsScript), SetupToolsPath) ||
-                    !webClient.DownloadFileAsync(new Uri(pipScript), PipPath))
+                Exception error;
+                if (!webClient.DownloadFileAsync(new Uri(setupToolsScript), SetupToolsPath, out error) ||
+                    !webClient.DownloadFileAsync(new Uri(pipScript), PipPath, out error))
                 {
-                    throw new ToolExecutionException(Resources.PythonInstaller_DownloadPip_Download_failed__Check_your_network_connection_or_contact_Skyline_developers_);
+                    throw new ToolExecutionException(Resources.PythonInstaller_DownloadPip_Download_failed__Check_your_network_connection_or_contact_Skyline_developers_, error);
                 }
             }
         }

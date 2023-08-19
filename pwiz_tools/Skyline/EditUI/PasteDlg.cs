@@ -22,7 +22,6 @@ using System.Drawing;
 using System.IO;
 using System.Linq;
 using System.Windows.Forms;
-using pwiz.Common.Controls;
 using pwiz.Common.SystemUtil;
 using pwiz.ProteomeDatabase.API;
 using pwiz.Skyline.Alerts;
@@ -383,8 +382,18 @@ namespace pwiz.Skyline.EditUI
                     }
                 }
                 // Create node using ModificationMatcher.
-                nodePepNew = matcher.GetModifiedNode(pepModSequence, fastaSequence).ChangeSettings(document.Settings,
-                                                                                                  SrmSettingsDiff.ALL);
+                nodePepNew = matcher.GetModifiedNode(pepModSequence, fastaSequence);
+                if (nodePepNew == null)
+                {
+                    ShowPeptideError(new PasteError
+                    {
+                        Column = colPeptideSequence.Index,
+                        Line = i,
+                        Message = Resources.PasteDlg_AddPeptides_Unable_to_interpret_peptide_modifications
+                    });
+                    return null;
+                }
+                nodePepNew = nodePepNew.ChangeSettings(document.Settings, SrmSettingsDiff.ALL);
                 // Avoid adding an existing peptide a second time.
                 if (!peptides.Contains(nodePep => Equals(nodePep.Key, nodePepNew.Key)))
                 {

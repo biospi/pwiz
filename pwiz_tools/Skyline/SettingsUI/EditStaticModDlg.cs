@@ -23,7 +23,7 @@ using System.Globalization;
 using System.Linq;
 using System.Text;
 using System.Windows.Forms;
-using pwiz.Common.Controls;
+using pwiz.Common.SystemUtil;
 using pwiz.Skyline.Alerts;
 using pwiz.Skyline.Controls;
 using pwiz.Skyline.Model;
@@ -154,7 +154,7 @@ namespace pwiz.Skyline.SettingsUI
                     else
                         comboTerm.SelectedItem = modification.Terminus.Value.ToString();
                     cbVariableMod.Checked = modification.IsVariable;
-                    if (modification.Formula != null)
+                    if (modification.ParsedMolecule != null)
                     {
                         Formula = modification.Formula;
                         // Make sure the formula is showing
@@ -569,7 +569,7 @@ namespace pwiz.Skyline.SettingsUI
                 string aaString = comboAA.Text;
                 if (!string.IsNullOrEmpty(aaString) && aaString.Length == 1 &&
                         AminoAcid.IsAA(aaString[0])&& labelAtoms != LabelAtoms.None)
-                    formula = SequenceMassCalc.GetHeavyFormula(aaString[0], labelAtoms);
+                    formula = SequenceMassCalc.GetHeavyFormula(aaString[0], labelAtoms).ToString();
             }
 
             if (string.IsNullOrEmpty(formula))
@@ -818,6 +818,21 @@ namespace pwiz.Skyline.SettingsUI
         private void cbCrosslinker_CheckedChanged(object sender, EventArgs e)
         {
             cbVariableMod.Enabled = !cbCrosslinker.Checked;
+        }
+
+        private void listLosses_MouseMove(object sender, MouseEventArgs e)
+        {
+            string newToolTip = null;
+            var itemIndex = listLosses.IndexFromPoint(e.Location);
+            if (itemIndex >= 0 && itemIndex < listLosses.Items.Count)
+            {
+                newToolTip = (listLosses.Items[itemIndex] as IHasItemDescription)?.ItemDescription.ToString();
+            }
+
+            if (newToolTip != helpTip.GetToolTip(listLosses))
+            {
+                helpTip.SetToolTip(listLosses, newToolTip);
+            }
         }
     }
 }

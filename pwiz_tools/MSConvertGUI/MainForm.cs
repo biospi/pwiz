@@ -26,16 +26,18 @@ using System.Diagnostics;
 using System.Drawing;
 using System.IO;
 using System.Linq;
+using System.Reflection;
 using System.Text;
 using System.Threading;
 using System.Windows.Forms;
 using System.Text.RegularExpressions;
 using CustomDataSourceDialog;
 using pwiz.CLI.msdata;
+using pwiz.Common.Collections;
 
 namespace MSConvertGUI
 {
-    public partial class MainForm : Form
+    public partial class MainForm : BaseForm
     {
         IList<string> cmdline_args;
         string SetDefaultsDataType = ""; // watch last-added filetype, offer to set defaults for that type
@@ -230,6 +232,8 @@ namespace MSConvertGUI
                 }
             }
 
+            FilesToConvertInParallelUpDown.Value = Properties.Settings.Default.NumFilesToConvertInParallel;
+
             thresholdTypeComboBox.Items.AddRange(thresholdTypes.Select(o => o.Key).ToArray());
             thresholdTypeComboBox.SelectedIndex = 0;
             thresholdOrientationComboBox.SelectedIndex = 0;
@@ -338,6 +342,7 @@ namespace MSConvertGUI
             SubsetPanel.Visible = false;
             LockmassRefinerPanel.Visible = false;
             ScanSummingPanel.Visible = false;
+            DiaUmpirePanel.Visible = false;
 
             switch (FilterBox.Text)
             {
@@ -367,6 +372,9 @@ namespace MSConvertGUI
                     break;
                 case "Scan Summing":
                     ScanSummingPanel.Visible = true;
+                    break;
+                case "DIA-Umpire":
+                    DiaUmpirePanel.Visible = true;
                     break;
             }
         }
@@ -560,6 +568,7 @@ namespace MSConvertGUI
                         String optimizationArgs = DemuxTypeBox.Text == "Overlap Only" ? " optimization=overlap_only" : String.Empty;
                         demuxArgs += optimizationArgs;
                     }
+
                     if (!String.IsNullOrEmpty(DemuxMassErrorValue.Text) &&
                         !String.IsNullOrEmpty(DemuxMassErrorTypeBox.Text))
                     {
@@ -567,6 +576,9 @@ namespace MSConvertGUI
                             DemuxMassErrorValue.Text,
                             DemuxMassErrorTypeBox.Text);
                     }
+
+                    if (DemuxRemoveNonOverlappingEdgesCheckbox.Checked)
+                        demuxArgs += " removeNonOverlappingEdges=true";
 
                     FilterDGV.Rows.Add(new[]
                         {
@@ -589,6 +601,15 @@ namespace MSConvertGUI
                                                 args
                                            });
                     break;
+
+                case "DIA-Umpire":
+                    FilterDGV.Rows.Add(new[]
+                    {
+                        "diaUmpire",
+                        String.Format("params={0}", DiaUmpireParamsFileTextBox.Text)
+                    });
+                    break;
+
                 case "ETD Peak Filter":
                     var tempObject = new[] { "ETDFilter", String.Empty };
                     if (!ETDRemovePrecursorBox.Checked || !ETDRemoveChargeReducedBox.Checked ||
@@ -619,24 +640,38 @@ namespace MSConvertGUI
                         scanTimeHigh = String.IsNullOrEmpty(ScanTimeHigh.Text) ? "1e8" : ScanTimeHigh.Text;
                     }
 
+                    Action<string, string> addOrUpdateFilter = (filter, args) =>
+                    {
+                        foreach(DataGridViewRow row in FilterDGV.Rows)
+                            if (row.Cells[0].Value.ToString() == filter)
+                            {
+                                row.SetValues(filter, args);
+                                return;
+                            }
+                        FilterDGV.Rows.Add(filter, args);
+                    };
+
                     if (!String.IsNullOrEmpty(MSLevelLow.Text) || !String.IsNullOrEmpty(MSLevelHigh.Text))
-                        FilterDGV.Rows.Add(new[] { "msLevel", String.Format("{0}-{1}", MSLevelLow.Text, MSLevelHigh.Text) });
+                        addOrUpdateFilter("msLevel", String.Format("{0}-{1}", MSLevelLow.Text, MSLevelHigh.Text));
                     if (!String.IsNullOrEmpty(ScanNumberLow.Text) || !String.IsNullOrEmpty(ScanNumberHigh.Text))
-                        FilterDGV.Rows.Add(new[] { "scanNumber", String.Format("{0}-{1}", ScanNumberLow.Text, ScanNumberHigh.Text) });
+                        addOrUpdateFilter("scanNumber", String.Format("{0}-{1}", ScanNumberLow.Text, ScanNumberHigh.Text));
                     if (!String.IsNullOrEmpty(scanTimeLow) || !String.IsNullOrEmpty(scanTimeHigh))
-                        FilterDGV.Rows.Add(new[] { "scanTime", String.Format("[{0},{1}]", scanTimeLow, scanTimeHigh) });
+                        addOrUpdateFilter("scanTime", String.Format("[{0},{1}]", scanTimeLow, scanTimeHigh));
                     if (!String.IsNullOrEmpty(ScanEventLow.Text) || !String.IsNullOrEmpty(ScanEventHigh.Text))
-                        FilterDGV.Rows.Add(new[] { "scanEvent", String.Format("{0}-{1}", ScanEventLow.Text, ScanEventHigh.Text) });
+                        addOrUpdateFilter("scanEvent", String.Format("{0}-{1}", ScanEventLow.Text, ScanEventHigh.Text));
                     if (!String.IsNullOrEmpty(ChargeStatesLow.Text) || !String.IsNullOrEmpty(ChargeStatesHigh.Text))
-                        FilterDGV.Rows.Add(new[] { "chargeStates", String.Format("{0}-{1}", ChargeStatesLow.Text, ChargeStatesHigh.Text) });
+                        addOrUpdateFilter("chargeState", String.Format("{0}-{1}", ChargeStatesLow.Text, ChargeStatesHigh.Text));
                     if (!String.IsNullOrEmpty(DefaultArrayLengthLow.Text) || !String.IsNullOrEmpty(DefaultArrayLengthHigh.Text))
-                        FilterDGV.Rows.Add(new[] { "defaultArrayLength", String.Format("{0}-{1}", DefaultArrayLengthLow.Text, DefaultArrayLengthHigh.Text) });
+                        addOrUpdateFilter("defaultArrayLength", String.Format("{0}-{1}", DefaultArrayLengthLow.Text, DefaultArrayLengthHigh.Text));
+                    if (!String.IsNullOrEmpty(CollisionEnergyLow.Text) && !String.IsNullOrEmpty(CollisionEnergyHigh.Text))
+                        addOrUpdateFilter("collisionEnergy", String.Format("low={0} high={1} acceptNonCID={2} acceptMissingCE={3}", CollisionEnergyLow.Text, CollisionEnergyHigh.Text,
+                                                                           CollisionEnergyAcceptNonCIDMSnSpectra.Checked, CollisionEnergyAcceptCIDSpectraWithMissingCE.Checked));
                     if (ActivationTypeBox.Text != "Any")
-                        FilterDGV.Rows.Add(new[] { "activation", ActivationTypeBox.Text });
+                        addOrUpdateFilter("activation", ActivationTypeBox.Text);
                     if (AnalyzerTypeBox.Text != "Any")
-                        FilterDGV.Rows.Add(new[] { "analyzer", AnalyzerTypeBox.Text });
+                        addOrUpdateFilter("analyzer", AnalyzerTypeBox.Text);
                     if (PolarityBox.Text != "Any")
-                        FilterDGV.Rows.Add(new[] { "polarity", PolarityBox.Text.ToLowerInvariant() });
+                        addOrUpdateFilter("polarity", PolarityBox.Text.ToLowerInvariant());
                     //if (!String.IsNullOrEmpty(mzWinLow.Text) || !String.IsNullOrEmpty(mzWinHigh.Text))
                     //    FilterDGV.Rows.Add(new[] { "mzWindow", String.Format("[{0},{1}]", mzWinLow.Text, mzWinHigh.Text) });
                     break;
@@ -650,7 +685,10 @@ namespace MSConvertGUI
                     FilterDGV.Rows.Add(new[] { "lockmassRefiner", $"mz={LockmassMz.Text} tol={LockmassTolerance.Text}" });
                     break;
                 case "Scan Summing":
-                    FilterDGV.Rows.Add(new[] { "scanSumming", $"precursorTol={ScanSummingPrecursorToleranceTextBox.Text} scanTimeTol={ScanSummingScanTimeToleranceTextBox.Text} ionMobilityTol={ScanSummingIonMobilityToleranceTextBox.Text}" });
+                    FilterDGV.Rows.Add(new[] { "scanSumming", $"precursorTol={ScanSummingPrecursorToleranceTextBox.Text} scanTimeTol={ScanSummingScanTimeToleranceTextBox.Text} ionMobilityTol={ScanSummingIonMobilityToleranceTextBox.Text} sumMs1={(ScanSummingSumMs1Checkbox.Checked ? 1 : 0)}" });
+                    break;
+                case "Waters DDA Processing":
+                    FilterDGV.Rows.Add("ddaProcessing");
                     break;
             }
         }
@@ -707,7 +745,7 @@ namespace MSConvertGUI
             var commandLine = new StringBuilder();
             //Get config settings
 
-            if (OutputFormatBox.Text != OutputExtensionBox.Text)
+            if (!OutputExtensionBox.Text.IsNullOrEmpty() && OutputFormatBox.Text != OutputExtensionBox.Text)
                 commandLine.AppendFormat("--ext|{0}|", OutputExtensionBox.Text);
             ValidateNumpress(); // make sure numpress settings are reasonable
             switch (OutputFormatBox.Text)
@@ -771,29 +809,12 @@ namespace MSConvertGUI
             if (SrmSpectraBox.Checked)
                 commandLine.Append("--srmAsSpectra|");
 
-            var msLevelsTotal = String.Empty;
-            var scanNumberTotal = String.Empty;
             foreach (DataGridViewRow row in FilterDGV.Rows)
-            {
-                switch ((string)row.Cells[0].Value)
-                {
-                    case "msLevel":
-                        msLevelsTotal += (string)row.Cells[1].Value + " ";
-                        break;
-                    case "scanNumber":
-                        scanNumberTotal += (string)row.Cells[1].Value + " ";
-                        break;
-                    default:
-                        commandLine.AppendFormat("--filter|{0} {1}|", row.Cells[0].Value, row.Cells[1].Value);
-                        break;
-                }
-            }
-
-            if (!String.IsNullOrEmpty(msLevelsTotal))
-                commandLine.AppendFormat("--filter|msLevel {0}|", msLevelsTotal.Trim());
-            if (!String.IsNullOrEmpty(scanNumberTotal))
-                commandLine.AppendFormat("--filter|scanNumber {0}|", scanNumberTotal.Trim());
-
+                if (row.Cells[0].Value.Equals("ddaProcessing"))
+                    commandLine.Append("--ddaProcessing|");
+                else
+                    commandLine.AppendFormat("--filter|{0} {1}|", row.Cells[0].Value, row.Cells[1].Value);
+            
             if (MakeTPPCompatibleOutputButton.Checked)
             {
                 String tppline = "--filter|titleMaker <RunId>.<ScanNumber>.<ScanNumber>.<ChargeState> File:\"<SourcePath>\", NativeID:\"<Id>\"|";
@@ -845,8 +866,11 @@ namespace MSConvertGUI
                         break;
                     case "--filter":
                         var space = words[++i].IndexOf(' ');
-                        FilterDGV.Rows.Add(new[] { words[i].Substring(0,space),
-                            words[i].Substring(space+1) });
+                        string filterName = words[i].Substring(0, space);
+                        if (filterName == "titleMaker")
+                            MakeTPPCompatibleOutputButton.Checked = true;
+                        else
+                            FilterDGV.Rows.Add(filterName, words[i].Substring(space+1));
                         break;
                     case "--32":
                     case "--noindex":
@@ -1080,6 +1104,9 @@ namespace MSConvertGUI
             setToolTip(this.ScanEventLabel, "Use this filter to include only scans generated by a range of scan events.", "Subset");
             setToolTip(this.ScanEventHigh, "Highest scan event to include in the conversion (may be left blank).", "Subset");
             setToolTip(this.ScanEventLow, "Lowest scan event to include in the conversion.", "Subset");
+            setToolTip(this.CollisionEnergyLabel, "Use this filter to include only scans activated within the specified collision energy range.", "Subset");
+            setToolTip(this.CollisionEnergyHigh, "Highest collision energy to include in the conversion.", "Subset");
+            setToolTip(this.CollisionEnergyLow, "Lowest collision energy to include in the conversion.", "Subset");
             setToolTip(this.mzWinLabel, "Use this filter to include only scans with a limited range of m/z values.", "Subset");
             setToolTip(this.mzWinHigh, "Highest m/z value to include in the conversion.", "Subset");
             setToolTip(this.mzWinLow, "Lowest m/z value to include in the conversion.", "Subset");
@@ -1194,6 +1221,7 @@ namespace MSConvertGUI
             setToolTip(this.ScanSummingPrecursorToleranceTextBox, "Specify how similar two MS2 spectra's precursors must be to be considered for summing.");
             setToolTip(this.ScanSummingScanTimeToleranceTextBox, "Specify how similar two MS2 spectra's scan times must be to be considered for summing. A value of 0 specifies that a similar scan time is not required for summing.");
             setToolTip(this.ScanSummingIonMobilityToleranceTextBox, "Specify how similar two MS2 spectra's ion mobilities must be to be considered for summing. A value of 0 specifies that a similar ion mobility is not required for summing.");
+            setToolTip(this.ScanSummingSumMs1Checkbox, "Specify whether to sum MS1 scans as well as MS2s. Currently the tolerances are ignored: points are only summed within MS1 spectra, not between them.");
         }
 
         private void AboutButtonClick(object sender, EventArgs e)
@@ -1282,6 +1310,12 @@ namespace MSConvertGUI
             SelectPreset(SetDefaultsDataType == String.Empty ? "Generic Defaults" : SetDefaultsDataType + " Defaults");
         }
 
+        private void FilesToConvertInParallelUpDown_ValueChanged(object sender, EventArgs e)
+        {
+            Properties.Settings.Default.NumFilesToConvertInParallel = FilesToConvertInParallelUpDown.Value;
+            Properties.Settings.Default.Save();
+        }
+
         #region Drag 'n Drop reordering of rows
         // http://www.inforbiro.com/blog-eng/c-sharp-datagridview-drag-and-drop-rows-reorder/
         private Rectangle dragBoxFromMouseDown;
@@ -1358,5 +1392,64 @@ namespace MSConvertGUI
             };
         }
         #endregion
+
+        private void DiaUmpireParamsFileBrowseButton_Click(object sender, EventArgs e)
+        {
+            using (var ofd = new OpenFileDialog() {Title = "Pick DIA-Umpire Params File", CheckFileExists = true})
+            {
+                if (ofd.ShowDialog(this) == DialogResult.Cancel)
+                    return;
+
+                DiaUmpireParamsFileTextBox.Text = ofd.FileName;
+            }
+        }
+
+        private void showCommandLine_Click(object sender, EventArgs e)
+        {
+            static string Quote(string str) => $"\"{str}\"";
+
+            var rawArgs = ConstructCommandline().Split('|');
+
+            // when a Windows command-line has escaped quotes in it, handling of escaping redirection characters (<>&|) gets really tricky;
+            // inside a double quoted string, they shouldn't be escaped;
+            // outside a quoted string (""" escaped quotes behave as if ending/starting a quoted string), they must be escaped with ^
+            var escapedArgs = new List<string>();
+            foreach (var arg in rawArgs)
+            {
+                var argBuilder = new StringBuilder();
+                bool inQuote = true;
+                foreach (char c in arg)
+                {
+                    if (c == '"')
+                    {
+                        inQuote = !inQuote;
+                        argBuilder.Append('"', 3);
+                    }
+                    else if (c == '>' && !inQuote)
+                        argBuilder.Append("^>");
+                    else if (c == '<' && !inQuote)
+                        argBuilder.Append("^<");
+                    else if (c == '&' && !inQuote)
+                        argBuilder.Append("^&");
+                    else
+                        argBuilder.Append(c);
+                }
+
+                var escapedArg = argBuilder.ToString();
+                escapedArgs.Add(arg.Contains(" ") ? Quote(escapedArg) : escapedArg);
+            }
+
+            // escape double quotes with more double quotes (DOS-style escaping) and add quotes around parameters with spaces
+            var cmdLine =
+                Quote(Path.Combine(Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location), "msconvert.exe")) + " " +
+                String.Join(" ", escapedArgs) + " " +
+                String.Join(" ", from object item in FileListBox.Items select Quote(item.ToString()));
+
+            if (DialogResult.Cancel == MessageBox.Show(
+                $"The equivalent msconvert.exe command-line for the current settings:\r\n\r\n{cmdLine}\r\n\r\nPress OK to copy it to the clipboard.",
+                "Command-line", MessageBoxButtons.OKCancel))
+                return;
+            Clipboard.SetText(cmdLine);
+        }
     }
 }

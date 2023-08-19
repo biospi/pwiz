@@ -742,7 +742,7 @@ namespace pwiz.Skyline.Model.DocSettings
 
         public static ImmutableList<Adduct> MakeChargeCollection(IList<Adduct> charges)
         {
-            var arrayCharges = charges.ToArrayStd();
+            var arrayCharges = charges.Select(adduct => adduct.Unlabeled).Distinct().ToArray(); // Ignore any isotope labeling in small mol adducts
             Array.Sort(arrayCharges);
             return MakeReadOnly(arrayCharges);
         }
@@ -912,6 +912,15 @@ namespace pwiz.Skyline.Model.DocSettings
         public TransitionFilter ChangeFragmentRangeLastName(string prop)
         {
             return ChangeProp(ImClone(this), im => im.FragmentRangeLastName = prop);
+        }
+
+        public TransitionFilter ChangeFragmentRangeAll()
+        {
+            return ChangeProp(ImClone(this), im =>
+            {
+                im._fragmentRangeFirst = StartFragmentFinder.ION_1;
+                im._fragmentRangeLast = EndFragmentFinder.LAST_ION;
+            });
         }
 
         public TransitionFilter ChangeMeasuredIons(IList<MeasuredIon> prop)
@@ -1424,7 +1433,7 @@ namespace pwiz.Skyline.Model.DocSettings
                 int length = masses.GetLength(1);
                 Debug.Assert(length > 0);
 
-                if (Transition.IsNTerminal(type))
+                if (type.IsNTerminal())
                     return Math.Min(_ordinal, length) - 1;
                 
                 return Math.Max(0, length - _ordinal);
@@ -1472,7 +1481,7 @@ namespace pwiz.Skyline.Model.DocSettings
                 // Make sure to start outside the precursor m/z window
                 double thresholdMz = precursorMz + precursorMzWindow / 2;
 
-                if (Transition.IsNTerminal(type))
+                if (type.IsNTerminal())
                 {
                     for (int i = 0; i < length; i++)
                     {
@@ -1559,7 +1568,7 @@ namespace pwiz.Skyline.Model.DocSettings
                 Debug.Assert(length > 0);
 
                 int end = length - 1;
-                if (Transition.IsNTerminal(type))
+                if (type.IsNTerminal())
                     return Math.Max(0, end - _offset);
                 
                 return Math.Min(end, _offset);
@@ -1589,7 +1598,7 @@ namespace pwiz.Skyline.Model.DocSettings
             {
                 Debug.Assert(length > 0);
 
-                if (Transition.IsNTerminal(type))
+                if (type.IsNTerminal())
                     return Math.Min(start + _count, length) - 1;
                 
                 return Math.Max(0, start - _count + 1);
@@ -1627,10 +1636,11 @@ namespace pwiz.Skyline.Model.DocSettings
         public const int MAX_ION_COUNT = 50;
         public const double MIN_MATCH_TOLERANCE = 0.001;    // Reduced from 0.1 to 0.001 (1 ppm at 1000 m/z) for high accuracy MS/MS
         public const double MAX_MATCH_TOLERANCE = 1.0;
+        public const double MAX_MATCH_TOLERANCE_PPM = 100.1;    // Increased from 1 to 100 for ppm tolerance units
 
-        public TransitionLibraries(double ionMatchTolerance, int minIonCount, int ionCount, TransitionLibraryPick pick)
+        public TransitionLibraries(MzTolerance ionMatchMzTolerance, int minIonCount, int ionCount, TransitionLibraryPick pick)
         {
-            IonMatchTolerance = ionMatchTolerance;
+            IonMatchMzTolerance = ionMatchMzTolerance;
             MinIonCount = minIonCount;
             IonCount = ionCount;
             Pick = pick;
@@ -1639,8 +1649,15 @@ namespace pwiz.Skyline.Model.DocSettings
         }
 
         [Track]
-        public double IonMatchTolerance { get; private set; }
+        public MzTolerance IonMatchMzTolerance { get; set; }
 
+        public static double GetMaxMatchTolerance(MzTolerance.Units unit)
+        {
+                if (unit == MzTolerance.Units.mz)
+                    return MAX_MATCH_TOLERANCE;
+                else 
+                    return MAX_MATCH_TOLERANCE_PPM;
+        }
         [Track]
         public int MinIonCount { get; private set; }
 
@@ -1670,9 +1687,9 @@ namespace pwiz.Skyline.Model.DocSettings
 
         #region Property change methods
 
-        public TransitionLibraries ChangeIonMatchTolerance(double prop)
+        public TransitionLibraries ChangeIonMatchMzTolerance(MzTolerance prop)
         {
-            return ChangeProp(ImClone(this), (im, v) => im.IonMatchTolerance = v, prop);
+            return ChangeProp(ImClone(this), (im, v) => im.IonMatchMzTolerance = v, prop);
         }
 
         public TransitionLibraries ChangeMinIonCount(int prop)
@@ -1704,6 +1721,7 @@ namespace pwiz.Skyline.Model.DocSettings
         private enum ATTR
         {
             ion_match_tolerance,
+            ion_match_tolerance_unit,
             min_ion_count,
             ion_count,
             pick_from,
@@ -1716,11 +1734,13 @@ namespace pwiz.Skyline.Model.DocSettings
 
         private void DoValidate()
         {
-            if (MIN_MATCH_TOLERANCE > IonMatchTolerance || IonMatchTolerance > MAX_MATCH_TOLERANCE)
+            if (MIN_MATCH_TOLERANCE > IonMatchMzTolerance.Value || IonMatchMzTolerance.Value > GetMaxMatchTolerance(IonMatchMzTolerance.Unit))
             {
-                throw new InvalidDataException(string.Format(Resources.TransitionLibraries_DoValidate_Library_ion_match_tolerance_value__0__must_be_between__1__and__2__,
-                                                             IonMatchTolerance, MIN_MATCH_TOLERANCE, MAX_MATCH_TOLERANCE));                
+                throw new InvalidDataException(string.Format(
+                    Resources.TransitionLibraries_DoValidate_Library_ion_match_tolerance_value__0__must_be_between__1__and__2__,
+                    IonMatchMzTolerance, MIN_MATCH_TOLERANCE, GetMaxMatchTolerance(IonMatchMzTolerance.Unit)));
             }
+
             if (0 > MinIonCount || MinIonCount > MAX_ION_COUNT)
             {
                 throw new InvalidDataException(string.Format(Resources.TransitionLibraries_DoValidate_Library_min_ion_count_value__0__must_be_between__1__and__2__,
@@ -1751,7 +1771,8 @@ namespace pwiz.Skyline.Model.DocSettings
         public void ReadXml(XmlReader reader)
         {
             // Read start tag attributes
-            IonMatchTolerance = reader.GetDoubleAttribute(ATTR.ion_match_tolerance);
+            IonMatchMzTolerance = new MzTolerance(reader.GetDoubleAttribute(ATTR.ion_match_tolerance),
+                reader.GetEnumAttribute(ATTR.ion_match_tolerance_unit, MzTolerance.Units.mz));
             MinIonCount = reader.GetIntAttribute(ATTR.min_ion_count);
             IonCount = reader.GetIntAttribute(ATTR.ion_count);
             Pick = reader.GetEnumAttribute(ATTR.pick_from, TransitionLibraryPick.all);
@@ -1765,7 +1786,9 @@ namespace pwiz.Skyline.Model.DocSettings
         public void WriteXml(XmlWriter writer)
         {
             // Write attributes
-            writer.WriteAttribute(ATTR.ion_match_tolerance, IonMatchTolerance);
+            writer.WriteAttribute(ATTR.ion_match_tolerance, IonMatchMzTolerance.Value);
+            if(IonMatchMzTolerance.Unit != MzTolerance.Units.mz)
+                writer.WriteAttribute(ATTR.ion_match_tolerance_unit, IonMatchMzTolerance.Unit);
             writer.WriteAttribute(ATTR.min_ion_count, MinIonCount);
             writer.WriteAttribute(ATTR.ion_count, IonCount);
             writer.WriteAttribute(ATTR.pick_from, Pick);
@@ -1779,7 +1802,7 @@ namespace pwiz.Skyline.Model.DocSettings
         {
             if (ReferenceEquals(null, obj)) return false;
             if (ReferenceEquals(this, obj)) return true;
-            return obj.IonMatchTolerance == IonMatchTolerance && obj.MinIonCount == MinIonCount && obj.IonCount == IonCount && Equals(obj.Pick, Pick);
+            return Equals(obj.IonMatchMzTolerance, IonMatchMzTolerance) && obj.MinIonCount == MinIonCount && obj.IonCount == IonCount && Equals(obj.Pick, Pick);
         }
 
         public override bool Equals(object obj)
@@ -1794,7 +1817,7 @@ namespace pwiz.Skyline.Model.DocSettings
         {
             unchecked
             {
-                int result = IonMatchTolerance.GetHashCode();
+                int result = IonMatchMzTolerance.GetHashCode();
                 result = (result*397) ^ MinIonCount;
                 result = (result*397) ^ IonCount;
                 result = (result*397) ^ Pick.GetHashCode();
@@ -2480,7 +2503,6 @@ namespace pwiz.Skyline.Model.DocSettings
         public RetentionTimeFilterType RetentionTimeFilterType { get; private set; }
         [Track]
         public double RetentionTimeFilterLength { get; private set; }
-
         public bool IsEnabled
         {
             get { return IsEnabledMs || IsEnabledMsMs; }
@@ -2708,6 +2730,11 @@ namespace pwiz.Skyline.Model.DocSettings
         public TransitionFullScan ChangeUseSelectiveExtraction(bool prop)
         {
             return ChangeProp(ImClone(this), im => im.UseSelectiveExtraction = prop);
+        }
+
+        public TransitionFullScan ChangeIgnoreSimScans(bool prop)
+        {
+            return ChangeProp(ImClone(this), im => im.IgnoreSimScans = prop);
         }
 
         public TransitionFullScan ChangeRetentionTimeFilter(RetentionTimeFilterType retentionTimeFilterType,

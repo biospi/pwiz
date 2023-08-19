@@ -23,7 +23,6 @@ using System.IO;
 using System.Linq;
 using System.Windows.Forms;
 using pwiz.Common.Collections;
-using pwiz.Common.Controls;
 using pwiz.Common.SystemUtil;
 using pwiz.Skyline.Alerts;
 using pwiz.Skyline.Controls;
@@ -82,6 +81,9 @@ namespace pwiz.Skyline.SettingsUI
         private readonly LabelTypeComboDriver _driverLabelType;
         private static readonly IList<int?> _quantMsLevels = ImmutableList.ValueOf(new int?[] {null, 1, 2});
         private readonly LabelTypeComboDriver _driverSmallMolInternalStandardTypes;
+        private string _staticModsOriginalTooltip;
+        private string _heavyModsOriginalTooltip;
+        private string _librariesOriginalTooltip;
 
         public PeptideSettingsUI(SkylineWindow parent, LibraryManager libraryManager, TABS? selectTab)
         {
@@ -560,7 +562,7 @@ namespace pwiz.Skyline.SettingsUI
 
             quantification = quantification.ChangeSimpleRatios(cbxSimpleRatios.Checked);
 
-            return new PeptideSettings(enzyme, digest, prediction, filter, libraries, modifications, integration, backgroundProteome)
+            return new PeptideSettings(enzyme, digest, prediction, filter, libraries, modifications, integration, backgroundProteome, _peptideSettings.ProteinAssociationSettings)
                     .ChangeAbsoluteQuantification(quantification);
         }
 
@@ -811,13 +813,22 @@ namespace pwiz.Skyline.SettingsUI
                 {
                     MidasLibrary midasLib = null;
                     using (var longWait = new LongWaitDlg
+                           {
+                               Text = Resources.PeptideSettingsUI_ShowFilterMidasDlg_Loading_MIDAS_Library,
+                               Message = string.Format(Resources.PeptideSettingsUI_ShowFilterMidasDlg_Loading__0_, Path.GetFileName(midasLibSpec.FilePath))
+                           })
                     {
-                        Text = Resources.PeptideSettingsUI_ShowFilterMidasDlg_Loading_MIDAS_Library,
-                        Message = string.Format(Resources.PeptideSettingsUI_ShowFilterMidasDlg_Loading__0_, Path.GetFileName(midasLibSpec.FilePath))
-                    })
-                    {
-                        longWait.PerformWork(this, 800, monitor => midasLib = _libraryManager.LoadLibrary(midasLibSpec, () => new DefaultFileLoadMonitor(monitor)) as MidasLibrary);
+                        longWait.PerformWork(this, 800, monitor => midasLib =
+                            _libraryManager.LoadLibrary(midasLibSpec, () => new DefaultFileLoadMonitor(monitor)) as MidasLibrary);
                     }
+
+                    if (midasLib == null)
+                    {
+                        MessageDlg.Show(this, string.Format(
+                            Resources.PeptideSettingsUI_ShowFilterMidasDlg_Failed_loading_MIDAS_library__0__, Path.GetFileName(midasLibSpec.FilePath)));
+                        return;
+                    }
+
                     var builder = new MidasBlibBuilder(_parent.Document, midasLib, filterDlg.LibraryName, filterDlg.FileName);
                     builder.BuildLibrary(null);
                     Settings.Default.SpectralLibraryList.Add(builder.LibrarySpec);
@@ -1694,7 +1705,8 @@ namespace pwiz.Skyline.SettingsUI
                 {
                     for (int i = 0; i < Combo.Items.Count; i++)
                     {
-                        if (Equals(value, ((TypedModifications)Combo.Items[i]).LabelType.Name))
+                        if (Combo.Items[i] is TypedModifications && // Watch out for "Edit List"
+                            Equals(value, ((TypedModifications)Combo.Items[i]).LabelType.Name))
                         {
                             Combo.SelectedIndex = i;
                             break;
@@ -1714,7 +1726,8 @@ namespace pwiz.Skyline.SettingsUI
                     }
                     for (int i = 1; i < ComboIS.Items.Count; i++)
                     {
-                        if (Equals(value, ((IsotopeLabelType)ComboIS.Items[i]).Name))
+                        if (ComboIS.Items[i] is IsotopeLabelType && // Watch out for "Edit List"
+                            Equals(value, ((IsotopeLabelType)ComboIS.Items[i]).Name))
                         {
                             ComboIS.SelectedIndex = i;
                             break;
@@ -1838,6 +1851,64 @@ namespace pwiz.Skyline.SettingsUI
         {
             get { return (PeptidePick) comboMatching.SelectedIndex; }
             set { comboMatching.SelectedIndex = (int) value; }
+        }
+        private void ChangeTooltip(Control control, string newToolTip)
+        {
+            if (helpTip.GetToolTip(control) != newToolTip)
+            {
+                helpTip.SetToolTip(control, newToolTip);
+            }
+        }
+        
+        private void listStaticMods_MouseMove(object sender, MouseEventArgs e)
+        {
+            var itemIndex = listStaticMods.IndexFromPoint(e.Location);
+            StaticMod staticMod = null;
+            if (itemIndex >= 0 && itemIndex < _driverStaticMod.Choices.Length)
+            {
+                staticMod = _driverStaticMod.Choices[itemIndex];
+            }
+            // Remember the original tooltips which were set in the form designer.
+            // The original tooltip is displayed when the mouse is not pointing at any item in the list
+            if (string.IsNullOrEmpty(_staticModsOriginalTooltip))
+            {
+                _staticModsOriginalTooltip = helpTip.GetToolTip(listStaticMods);
+            }
+            ChangeTooltip(listStaticMods, staticMod?.ItemDescription.ToString() ?? _staticModsOriginalTooltip);
+        }
+
+        private void listHeavyMods_MouseMove(object sender, MouseEventArgs e)
+        {
+            var itemIndex = listHeavyMods.IndexFromPoint(e.Location);
+            StaticMod heavyMod = null;
+            if (itemIndex >= 0 && itemIndex < _driverHeavyMod.Choices.Length)
+            {
+                heavyMod = _driverHeavyMod.Choices[itemIndex];
+            }
+            // Remember the original tooltips which were set in the form designer.
+            // The original tooltip is displayed when the mouse is not pointing at any item in the list
+            if (string.IsNullOrEmpty(_heavyModsOriginalTooltip))
+            {
+                _heavyModsOriginalTooltip = helpTip.GetToolTip(listHeavyMods);
+            }
+            ChangeTooltip(listHeavyMods, heavyMod?.ItemDescription.ToString() ?? _heavyModsOriginalTooltip);
+        }
+
+        private void listLibraries_MouseMove(object sender, MouseEventArgs e)
+        {
+            var itemIndex = listLibraries.IndexFromPoint(e.Location);
+            LibrarySpec librarySpec = null;
+            if (itemIndex >= 0 && itemIndex < _driverLibrary.Choices.Length)
+            {
+                librarySpec = _driverLibrary.Choices[itemIndex];
+            }
+            // Remember the original tooltips which were set in the form designer.
+            // The original tooltip is displayed when the mouse is not pointing at any item in the list
+            if (string.IsNullOrEmpty(_librariesOriginalTooltip))
+            {
+                _librariesOriginalTooltip = helpTip.GetToolTip(listLibraries);
+            }
+            ChangeTooltip(listLibraries, librarySpec?.ItemDescription?.ToString() ?? _librariesOriginalTooltip);
         }
     }
 }

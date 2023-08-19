@@ -23,7 +23,6 @@ using System.Drawing;
 using System.IO;
 using System.Linq;
 using System.Windows.Forms;
-using pwiz.Common.Controls;
 using pwiz.Common.SystemUtil;
 using pwiz.Skyline.Alerts;
 using pwiz.Skyline.Model;
@@ -263,6 +262,8 @@ namespace pwiz.Skyline.Controls.Startup
 
         private void PopulateTutorialPanel()
         {
+            Tutorial = TutorialAction;
+
             var labelFont = new Font(@"Arial", 12F, FontStyle.Regular, GraphicsUnit.Point, 0);
             var labelAnchor = AnchorStyles.Left | AnchorStyles.Right;
             var labelWidth = flowLayoutPanelTutorials.ClientRectangle.Width - SystemInformation.VerticalScrollBarWidth;
@@ -632,8 +633,10 @@ namespace pwiz.Skyline.Controls.Startup
         {
             DoAction(new ActionImport(type).DoStartupAction);
         }
-        
-        private void Tutorial(string skyFileLocation, string pdfFileLocation, string zipSkyFileLocation)
+
+        public Action<string, string, string> Tutorial { get; set; }
+
+        private void TutorialAction(string skyFileLocation, string pdfFileLocation, string zipSkyFileLocation)
         {
             Assume.IsNotNull(skyFileLocation);
 

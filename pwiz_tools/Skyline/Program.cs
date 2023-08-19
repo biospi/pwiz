@@ -24,12 +24,13 @@ using System.Globalization;
 using System.IO;
 using System.IO.Pipes;
 using System.Net;
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading;
 using System.Windows.Forms;
 using Microsoft.Win32;
-using pwiz.Common.Controls;
+using pwiz.Common.Collections;
 using pwiz.Common.SystemUtil;
 using pwiz.Skyline.Alerts;
 using pwiz.Skyline.Controls;
@@ -37,11 +38,13 @@ using pwiz.Skyline.Controls.Startup;
 using pwiz.Skyline.Model;
 using pwiz.Skyline.Model.Tools;
 using pwiz.Skyline.Properties;
+using pwiz.Skyline.ToolsUI;
 using pwiz.Skyline.Util;
 using pwiz.Skyline.Util.Extensions;
 
 // Once-per-assembly initialization to perform logging with log4net.
 [assembly: log4net.Config.XmlConfigurator(ConfigFile = "SkylineLog4Net.config", Watch = true)]
+[assembly: InternalsVisibleTo("Test")]
 
 namespace pwiz.Skyline
 {
@@ -246,9 +249,6 @@ namespace pwiz.Skyline
                     
                 }
 
-                // Force live reports (though tests may reset this)
-                //Settings.Default.EnableLiveReports = true;
-
                 if (ReportShutdownDlg.HadUnexpectedShutdown())
                 {
                     using (var reportShutdownDlg = new ReportShutdownDlg())
@@ -344,6 +344,7 @@ namespace pwiz.Skyline
                     try
                     {
                         SendAnalyticsHit();
+                        SendGa4AnalyticsHit();
                     }
                     catch (Exception ex)
                     {
@@ -384,6 +385,67 @@ namespace pwiz.Skyline
                 new StreamReader(responseStream).ReadToEnd();
             }
             // ReSharper restore LocalizableElement
+        }
+
+        /// <summary>
+        /// Sends a page_view to the Skyline Google Analytics 4 property.
+        /// </summary>
+        /// <param name="responseStr">The body of the HTTP response, usually expected to be empty.</param>
+        /// <param name="useDebugUrl">If true, sets _dbg=true, which sends the hit to the debug view instead of the real one.</param>
+        /// <returns>The HTTP status code of the response to the analytics hit.</returns>
+        /// <remarks>
+        /// The browser-style collect endpoint is used because GA4's Measurement Protocol does not support automatic resolution of the geographic location of the client.
+        /// The parameters are mostly gleaned from observing a browser's HTTP request to GA4 when browsing a Skyline website page.
+        /// </remarks>
+        internal static int SendGa4AnalyticsHit(out string responseStr, bool useDebugUrl = false)
+        {
+            // ReSharper disable LocalizableElement
+            var clientId = Settings.Default.InstallationId;
+            if (clientId.IsNullOrEmpty())
+                clientId = "developer";
+
+            var postData = "v=2"; // Version 
+            postData += "&tid=G-CQG6T54XQR"; // Tracking id
+            postData += "&gtm=2oe880"; // Google tag manager
+            postData += "&_p=312721869";// + clientId.GetHashCode(); // page hash?
+            postData += "&cid=" + clientId; // Anonymous Client Id
+            postData += "&ul=en-us"; // user language
+            postData += "&sr=2560x1370"; // screen resolution
+            postData += "&_z=ccd.v9B"; // unknown
+            postData += "&_s=1"; // unknown
+            postData += "&sid=" + clientId.GetHashCode(); // session id
+            //postData += "&sct=1"; // session count
+            //postData += "&seg=1"; // session engagement
+            postData += "&dl=" + Uri.EscapeDataString("https://skyline.ms/software/instance.html");
+            postData += "&dt=&en=page_view";
+            postData += "&ep.install_type=" + Install.Type;
+            postData += "&ep.version=" + Uri.EscapeDataString(Install.Version + (Install.Is64Bit ? "-64bit" : "-32bit"));
+            if (useDebugUrl)
+                postData += "&_dbg=true";
+
+            var request = (HttpWebRequest)WebRequest.Create("https://www.google-analytics.com/g/collect?" + postData);
+            request.UserAgent = Install.GetUserAgentString();
+            request.Method = "POST";
+            request.ContentType = "application/x-www-form-urlencoded";
+            request.ContentLength = 0;
+
+            var response = (HttpWebResponse)request.GetResponse();
+            var responseStream = response.GetResponseStream();
+            if (null != responseStream)
+            {
+                var responseReader = new StreamReader(responseStream);
+                responseStr = responseReader.ReadToEnd();
+            }
+            else
+                responseStr = string.Empty;
+
+            return (int) response.StatusCode;
+            // ReSharper restore LocalizableElement
+        }
+
+        internal static int SendGa4AnalyticsHit(bool useDebugUrl = false)
+        {
+            return SendGa4AnalyticsHit(out _, useDebugUrl);
         }
 
         public static void StartToolService()

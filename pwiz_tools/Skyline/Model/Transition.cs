@@ -22,6 +22,7 @@ using System.Drawing;
 using System.Globalization;
 using System.IO;
 using System.Linq;
+using pwiz.Common.Chemistry;
 using pwiz.Common.SystemUtil;
 using pwiz.Skyline.Model.Crosslinking;
 using pwiz.Skyline.Model.DocSettings;
@@ -85,6 +86,21 @@ namespace pwiz.Skyline.Model
                 return (IonType) (i-2);
             var result = INPUT_ALIASES.Keys.First(ion => GetInputAliases(ion).Any(str => str.Equals(enumValue)));
             return result;
+        }
+
+        public static bool IsNTerminal(this IonType type)
+        {
+            return type == IonType.a || type == IonType.b || type == IonType.c || type == IonType.precursor;
+        }
+
+        public static bool IsCTerminal(this IonType type)
+        {
+            return type == IonType.x || type == IonType.y || type == IonType.z || type == IonType.zh || type == IonType.zhh;
+        }
+
+        public static List<IonType> GetFragmentList()
+        {
+            return Enumerable.Range(0, 1 + (int) IonType.zhh).Select(i => (IonType) i).ToList();
         }
 
         public static Color GetTypeColor(IonType? type, int rank = 0)
@@ -173,16 +189,6 @@ namespace pwiz.Skyline.Model
             }
         }
 
-        public static bool IsNTerminal(IonType type)
-        {
-            return type == IonType.a || type == IonType.b || type == IonType.c || type == IonType.precursor;
-        }
-
-        public static bool IsCTerminal(IonType type)
-        {
-            return type == IonType.x || type == IonType.y || type == IonType.z || type == IonType.zh || type == IonType.zhh;
-        }
-
         public static bool IsPrecursor(IonType type)
         {
             return type == IonType.precursor;
@@ -226,7 +232,7 @@ namespace pwiz.Skyline.Model
 
         public static int OrdinalToOffset(IonType type, int ordinal, int len)
         {
-            if (IsNTerminal(type))
+            if (type.IsNTerminal())
                 return ordinal - 1;
             else
                 return len - ordinal - 1;
@@ -234,7 +240,7 @@ namespace pwiz.Skyline.Model
 
         public static int OffsetToOrdinal(IonType type, int offset, int len)
         {
-            if (IsNTerminal(type) || type==IonType.custom) // Custom for small molecule work
+            if (type.IsNTerminal() || type==IonType.custom) // Custom for small molecule work
                 return offset + 1;
             else
                 return len - offset - 1;
@@ -593,7 +599,7 @@ namespace pwiz.Skyline.Model
             get { return GetFragmentIonName(LocalizationHelper.CurrentCulture); }
         }
 
-        public string GetFragmentIonName(CultureInfo cultureInfo, double? tolerance=null)
+        public string GetFragmentIonName(CultureInfo cultureInfo, MzTolerance tolerance=null)
         {
             if (IsCustom() && !IsPrecursor())
                 return CustomIon.ToString(tolerance);
@@ -606,12 +612,12 @@ namespace pwiz.Skyline.Model
 
         public bool IsNTerminal()
         {
-            return IsNTerminal(IonType);
+            return IonType.IsNTerminal();
         }
 
         public bool IsCTerminal()
         {
-            return IsCTerminal(IonType);
+            return IonType.IsCTerminal();
         }
 
         public bool IsPrecursor()
@@ -854,7 +860,7 @@ namespace pwiz.Skyline.Model
                 var text = CustomIon.ToString();
                 // Was there enough information to generate a string more distinctive that just "Ion"?
                 if (String.IsNullOrEmpty(CustomIon.Name) && 
-                    String.IsNullOrEmpty(CustomIon.NeutralFormula))
+                    CustomIon.ParsedMolecule.IsMassOnly)
                 {
                     // No, add mz and charge to whatever generic text was used to describe it
                     var mz = Adduct.MzFromNeutralMass(CustomIon.MonoisotopicMass);

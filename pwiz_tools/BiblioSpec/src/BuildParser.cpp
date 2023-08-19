@@ -32,6 +32,7 @@ BuildParser::BuildParser(BlibBuilder& maker,
 : fullFilename_(filename),
   blibMaker_(maker),
   fileProgressIncrement_(0),
+  filteredOutPsmCount_(0),
   lookUpBy_(SCAN_NUM_ID)
 {
     // initialize amino acid masses
@@ -92,6 +93,7 @@ void BuildParser::setSpecFileName(
     curSpecFileName_.clear();
 
     string fileroot = specfileroot;
+    Verbosity::debug("checking for basename: %s", fileroot);
     do {
         // try the location of the result file, then all dirs in the list
         for(int i=-1; i<(int)directories.size(); i++) {
@@ -204,9 +206,7 @@ string BuildParser::filesNotFoundMessage(
     if (extensions.empty())
         throw BlibException(false, "empty extensions list for filesNotFoundMessage");
 
-    string extString = extensions.at(0);
-    for (const auto& ext : extensions)
-        extString += ", " + ext;
+    string extString = boost::algorithm::join(extensions, ", ");
 
     string filesPlural = "file";
     string namesPlural = "name";
@@ -330,7 +330,7 @@ sqlite3_int64 BuildParser::insertProtein(const Protein* protein) {
 void BuildParser::buildTables(PSM_SCORE_TYPE scoreType, string specFilename, bool showSpecProgress) {
     // return if no psms for this file
     if( psms_.size() == 0 ) {
-        Verbosity::status("No matches found in %s.", curSpecFileName_.c_str() );
+        Verbosity::warn("No matches passed score filter in %s. %d matches did not pass filter.", curSpecFileName_.c_str(), filteredOutPsmCount_ );
         curSpecFileName_.clear();
         if( fileProgress_ ) { 
             if( fileProgressIncrement_ == 0 ){
@@ -341,6 +341,8 @@ void BuildParser::buildTables(PSM_SCORE_TYPE scoreType, string specFilename, boo
         }
         return;
     }
+
+    Verbosity::status("Read %d matches that passed the score filter (%d matches did not pass).", psms_.size(), filteredOutPsmCount_);
 
     // make sure sequences are uppercase; generate modified sequences if necessary
     verifySequences();

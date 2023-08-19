@@ -24,11 +24,13 @@ using System.Threading;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using pwiz.Common.DataBinding;
 using pwiz.Common.SystemUtil;
+using pwiz.Skyline.Controls.Databinding;
 using pwiz.Skyline.Model;
 using pwiz.Skyline.Model.Databinding;
 using pwiz.Skyline.Model.Databinding.Collections;
 using pwiz.Skyline.Model.Databinding.Entities;
 using pwiz.Skyline.Model.DocSettings;
+using pwiz.Skyline.Util.Extensions;
 using Peptide = pwiz.Skyline.Model.Databinding.Entities.Peptide;
 using Transition = pwiz.Skyline.Model.Databinding.Entities.Transition;
 
@@ -45,10 +47,6 @@ namespace pwiz.SkylineTestUtil
         }
 
         public void Dispose()
-        {
-        }
-
-        public void CheckAll()
         {
         }
 
@@ -81,14 +79,6 @@ namespace pwiz.SkylineTestUtil
             throw new ArgumentException(string.Format("No row source for {0}", viewInfo.ParentColumn.PropertyType));
         }
         
-        public static void CheckAll(SrmDocument document)
-        {
-            using (var checkReportCompatibility = new CheckReportCompatibility(document))
-            {
-                checkReportCompatibility.CheckAll();
-            }
-        }
-
         public static void ReportToCsv(ReportSpec reportSpec, SrmDocument doc, string fileName, CultureInfo cultureInfo)
         {
             var documentContainer = new MemoryDocumentContainer();
@@ -100,7 +90,7 @@ namespace pwiz.SkylineTestUtil
             {
                 IProgressStatus status = new ProgressStatus();
                 viewContext.Export(CancellationToken.None, new SilentProgressMonitor(), ref status,
-                    viewContext.GetViewInfo(ViewGroup.BUILT_IN, viewSpec.ViewSpec), writer, viewContext.GetCsvWriter());
+                    viewContext.GetViewInfo(ViewGroup.BUILT_IN, viewSpec.ViewSpec), writer, TextUtil.GetCsvSeparator(cultureInfo));
             }
         }
     }

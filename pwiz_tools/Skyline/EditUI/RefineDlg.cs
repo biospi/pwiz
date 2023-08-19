@@ -30,7 +30,6 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
 using System.Windows.Forms;
-using pwiz.Common.Controls;
 using pwiz.Skyline.Controls.Graphs;
 using pwiz.Skyline.Controls.GroupComparison;
 using pwiz.Skyline.Model.GroupComparison;
@@ -245,14 +244,17 @@ namespace pwiz.Skyline.EditUI
             set { comboTransType.SelectedItem = value.ToString(); }
         }
 
-        public double QValueCutoff
+        public double? QValueCutoff
         {
             get
             {
                 double result;
-                return double.TryParse(textQVal.Text, out result) ? result : double.NaN;
+                return double.TryParse(textQVal.Text, out result) ? result : (double?) null;
             }
-            set { textQVal.Text = value.ToString(CultureInfo.CurrentCulture); }
+            set
+            {
+                textQVal.Text = value?.ToString(CultureInfo.CurrentCulture) ?? string.Empty;
+            }
         }
 
         public int MinimumDetections
@@ -342,6 +344,25 @@ namespace pwiz.Skyline.EditUI
             get { return Convert.ToDouble(textFoldChange.Text); }
             set { textFoldChange.Text = value.ToString(CultureInfo.CurrentCulture); }
         }
+
+        public bool AutoPeptides
+        {
+            get => cbAutoPeptides.Checked;
+            set => cbAutoPeptides.Checked = value;
+        }
+
+        public bool AutoPrecursors
+        {
+            get => cbAutoPrecursors.Checked;
+            set => cbAutoPrecursors.Checked = value;
+        }
+
+        public bool AutoTransitions
+        {
+            get => cbAutoTransitions.Checked;
+            set => cbAutoTransitions.Checked = value;
+        }
+
 
         public void OkDialog()
         {

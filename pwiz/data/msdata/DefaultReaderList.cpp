@@ -574,7 +574,7 @@ PWIZ_API_DECL void Reader_mz5::read(const std::string& filename,
 
 
 
-        /// default Reader list
+/// default Reader list
 PWIZ_API_DECL DefaultReaderList::DefaultReaderList()
 {
     emplace_back(new Reader_mzML);

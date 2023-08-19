@@ -61,9 +61,12 @@ struct PWIZ_API_DECL MSDataFile : public MSData
         int mzMLb_compression_level;
         int mzMLb_chunk_size;
 
+        /// when true, if an error is seen when enumerating a spectrum or chromatogram, it will be skipped and enumeration will continue;
+        /// when false an error will immediately stop enumeration
+        bool continueOnError;
 
-    WriteConfig(Format _format = Format_mzML,bool _gzipped = false)
-        :   format(_format), indexed(true), gzipped(_gzipped), useWorkerThreads(true), mzMLb_compression_level(0), mzMLb_chunk_size(1048576)
+        WriteConfig(Format _format = Format_mzML, bool _gzipped = false)
+        :   format(_format), indexed(true), gzipped(_gzipped), useWorkerThreads(true), continueOnError(false), mzMLb_compression_level(0), mzMLb_chunk_size(1048576)
         {}
     };
 

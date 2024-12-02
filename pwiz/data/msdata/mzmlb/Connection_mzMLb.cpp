@@ -91,13 +91,13 @@ Connection_mzMLb::Connection_mzMLb(const std::string& id)
                     char* ver = new char[H5Tget_size(atype)];
                     H5Aread(aid, atype_mem, ver);
                     std::string version = ver;
-                    if (version != "mzMLb 0.6")
+                    /*if (version != "mzMLb 0.6")
                     {
                         H5Aclose(aid);
                         H5Aclose(atype_mem);
                         close();
                         throw std::runtime_error("[Connection_mzMLb::open()] We cannot read this version of mzMLb file.");
-                    }
+                    }*/
                    
                 }
                 H5Aclose(atype_mem);
